@@ -1093,6 +1093,21 @@ export const dbService = {
     return db.prepare('SELECT * FROM batches WHERE id = ?').get(id) as Batch;
   },
 
+  deleteBatch(id: string): boolean {
+    const existing = db.prepare('SELECT id FROM batches WHERE id = ?').get(id);
+    if (!existing) return false;
+
+    // Clean up dependent records safely
+    db.prepare('DELETE FROM batch_memberships WHERE batch_id = ?').run(id);
+    db.prepare('DELETE FROM assignment_recipients WHERE batch_id = ?').run(id);
+    db.prepare('DELETE FROM exam_batches WHERE batch_id = ?').run(id);
+    try {
+      db.prepare('UPDATE assignment_submissions SET batch_id = NULL WHERE batch_id = ?').run(id);
+    } catch {}
+    const res = db.prepare('DELETE FROM batches WHERE id = ?').run(id);
+    return res.changes > 0;
+  },
+
   addStudentToBatch(batchId: string, studentId: string): void {
     db.prepare('INSERT OR IGNORE INTO batch_memberships (id, batch_id, user_id) VALUES (?, ?, ?)')
       .run(`mem-${Date.now().toString(36)}`, batchId, studentId);

@@ -50,4 +50,36 @@ describe('Cohort Batch-Isolation and Security Rules', () => {
     // Amit must NOT see the 9 AM cycle analysis report!
     expect(amitTitles).not.toContain('Thermodynamics Cycle Analysis & Efficiency Report');
   });
+
+  it('safely creates and deletes an existing batch along with its memberships', () => {
+    // Create temporary batch
+    const tempBatch = dbService.createBatch({
+      name: 'Temporary Test Batch',
+      description: 'Batch to be tested for deletion'
+    });
+    expect(tempBatch.id).toBeDefined();
+
+    const rahul = dbService.getUserByStudentId('STU-2026-001');
+    expect(rahul).not.toBeNull();
+
+    // Enroll Rahul in temp batch
+    dbService.addStudentToBatch(tempBatch.id, rahul!.id);
+    let enrolled = dbService.getStudentBatches(rahul!.id);
+    expect(enrolled.some(b => b.id === tempBatch.id)).toBe(true);
+
+    // Delete the batch
+    const deleted = dbService.deleteBatch(tempBatch.id);
+    expect(deleted).toBe(true);
+
+    // Verify batch is gone
+    const fetched = dbService.getBatchById(tempBatch.id);
+    expect(fetched).toBeNull();
+
+    // Verify student is no longer enrolled
+    enrolled = dbService.getStudentBatches(rahul!.id);
+    expect(enrolled.some(b => b.id === tempBatch.id)).toBe(false);
+
+    // Deleting again should return false
+    expect(dbService.deleteBatch(tempBatch.id)).toBe(false);
+  });
 });

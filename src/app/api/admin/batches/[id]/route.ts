@@ -40,3 +40,23 @@ export async function PUT(
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    await requireAdmin();
+    const { id } = await params;
+
+    const success = dbService.deleteBatch(id);
+    if (!success) {
+      return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, message: 'Batch deleted successfully' });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error deleting batch';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

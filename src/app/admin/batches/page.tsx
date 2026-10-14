@@ -17,6 +17,10 @@ export default function BatchesPage() {
   const [newBatchName, setNewBatchName] = useState('');
   const [newBatchDesc, setNewBatchDesc] = useState('');
 
+  // Delete batch state
+  const [batchToDelete, setBatchToDelete] = useState<(Batch & { student_count?: number; students?: UserProfile[] }) | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // Add student form
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [studentSearch, setStudentSearch] = useState('');
@@ -106,6 +110,36 @@ export default function BatchesPage() {
     } catch {}
   };
 
+  const handleDeleteBatch = async () => {
+    if (!batchToDelete) return;
+    setIsDeleting(true);
+
+    try {
+      const res = await fetch(`/api/admin/batches/${batchToDelete.id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        const deletedId = batchToDelete.id;
+        setBatchToDelete(null);
+        if (selectedBatch?.id === deletedId) {
+          setSelectedBatch(null);
+        }
+        const remaining = batches.filter(b => b.id !== deletedId);
+        setBatches(remaining);
+        if (remaining.length > 0) {
+          fetchBatchDetails(remaining[0].id);
+        }
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete batch');
+      }
+    } catch {
+      alert('Error connecting to server. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const filteredStudents = selectedBatch?.students.filter(s =>
     s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
     (s.student_id && s.student_id.toLowerCase().includes(studentSearch.toLowerCase()))
@@ -144,21 +178,32 @@ export default function BatchesPage() {
               key={batch.id}
               interactive
               onClick={() => fetchBatchDetails(batch.id)}
-              className={`cursor-pointer transition-all ${
+              className={`group cursor-pointer transition-all ${
                 selectedBatch?.id === batch.id
                   ? 'border-2 border-indigo-600 ring-2 ring-indigo-100 bg-indigo-50/40'
                   : 'hover:border-slate-300'
               }`}
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">{batch.name}</h3>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-bold text-slate-900 truncate">{batch.name}</h3>
                   <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{batch.description || 'No description'}</p>
                 </div>
-                <div className="text-right">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700">
-                    {batch.student_count} students
+                    {batch.student_count}
                   </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setBatchToDelete(batch);
+                    }}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                    title={`Delete ${batch.name}`}
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               </div>
             </ClayCard>
@@ -187,6 +232,14 @@ export default function BatchesPage() {
                     onClick={() => setIsAddStudentOpen(true)}
                   >
                     <UserPlus size={15} /> Add Student to Batch
+                  </ClayButton>
+                  <ClayButton
+                    variant="danger"
+                    size="sm"
+                    onClick={() => setBatchToDelete(selectedBatch)}
+                    className="shadow-sm"
+                  >
+                    <Trash2 size={15} /> Delete Batch
                   </ClayButton>
                 </div>
               </div>
@@ -354,6 +407,43 @@ export default function BatchesPage() {
               onClick={handleAddStudentToBatch}
             >
               Confirm Enrollment
+            </ClayButton>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Batch Confirmation Modal */}
+      <Modal
+        isOpen={Boolean(batchToDelete)}
+        onClose={() => !isDeleting && setBatchToDelete(null)}
+        title="Delete Classroom Batch"
+      >
+        <div className="space-y-4">
+          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
+            <p className="font-semibold text-rose-900 mb-1 text-sm">
+              Are you sure you want to delete <span className="underline font-bold">"{batchToDelete?.name}"</span>?
+            </p>
+            <p className="text-rose-700 leading-relaxed mt-1">
+              This will permanently delete this classroom cohort and automatically unenroll all students. Associated homework and examination assignments targeted to this batch will also be cleaned up. This action cannot be undone.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <ClayButton
+              type="button"
+              variant="secondary"
+              disabled={isDeleting}
+              onClick={() => setBatchToDelete(null)}
+            >
+              Cancel
+            </ClayButton>
+            <ClayButton
+              type="button"
+              variant="danger"
+              disabled={isDeleting}
+              onClick={handleDeleteBatch}
+            >
+              {isDeleting ? 'Deleting...' : 'Yes, Delete Batch'}
             </ClayButton>
           </div>
         </div>
