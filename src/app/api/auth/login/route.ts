@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (err: unknown) {
+    console.error('[API AUTH LOGIN ERROR]:', err);
     const message = err instanceof Error ? err.message : 'Login failed';
     return NextResponse.json({ error: message }, { status: 500 });
   }

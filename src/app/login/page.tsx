@@ -45,7 +45,7 @@ export default function LoginPage() {
       }
 
       if (!res.ok) {
-        throw new Error(data?.error || `Authentication failed (HTTP ${res.status}). Please try again.`);
+        throw new Error(data?.error || data?.message || `Authentication failed (HTTP ${res.status}). Please try again.`);
       }
 
       router.push(data.redirectTo || (roleTab === 'admin' ? '/admin/dashboard' : '/student/dashboard'));
