@@ -69,8 +69,9 @@ This web application provides a full-featured, database-backed platform for mana
 The database automatically initializes upon first start with the following demonstration accounts:
 
 ### Trainer / Administrator
+- **Admin ID**: `Tushar1234`
 - **Email**: `tushar@cybrom.com`
-- **Password**: `Password@123`
+- **Password**: `Tushar@0963`
 - **Role**: Admin / Trainer
 
 ### Sample Students

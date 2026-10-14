@@ -247,6 +247,17 @@ function initSchema() {
   try { db.exec(`ALTER TABLE attempt_responses ADD COLUMN manual_marks REAL`); } catch {}
   try { db.exec(`ALTER TABLE attempt_responses ADD COLUMN teacher_remarks TEXT`); } catch {}
   try { db.exec(`ALTER TABLE attempt_responses ADD COLUMN descriptive_answer TEXT`); } catch {}
+
+  // Ensure Admin credentials (ID: Tushar1234, Password: Tushar@0963)
+  try {
+    const adminPassHash = bcrypt.hashSync('Tushar@0963', 10);
+    db.prepare(`
+      UPDATE profiles 
+      SET student_id = 'Tushar1234', 
+          password_hash = ?
+      WHERE role = 'admin' AND (email = 'tushar@cybrom.com' OR id = 'usr-admin-tushar')
+    `).run(adminPassHash);
+  } catch {}
 }
 
 // Seed initial demonstration data
@@ -258,6 +269,7 @@ function seedInitialData() {
 
   const salt = bcrypt.genSaltSync(10);
   const defaultPasswordHash = bcrypt.hashSync('Password@123', salt);
+  const adminPasswordHash = bcrypt.hashSync('Tushar@0963', salt);
 
   const insertProfile = db.prepare(`
     INSERT INTO profiles (id, student_id, name, email, password_hash, role, status)
@@ -267,10 +279,10 @@ function seedInitialData() {
   // Admin
   insertProfile.run(
     'usr-admin-tushar',
-    null,
+    'Tushar1234',
     'Tushar Shukla',
     'tushar@cybrom.com',
-    defaultPasswordHash,
+    adminPasswordHash,
     'admin',
     'active'
   );
@@ -921,6 +933,14 @@ export const dbService = {
 
   getUserByStudentId(studentId: string): UserWithPassword | null {
     return (db.prepare('SELECT * FROM profiles WHERE lower(student_id) = lower(?)').get(studentId) as UserWithPassword) || null;
+  },
+
+  getUserByIdentifier(identifier: string): UserWithPassword | null {
+    return (
+      (db.prepare(
+        'SELECT * FROM profiles WHERE lower(email) = lower(?) OR lower(student_id) = lower(?) OR lower(id) = lower(?)'
+      ).get(identifier, identifier, identifier) as UserWithPassword) || null
+    );
   },
 
   getUserById(id: string): UserProfile | null {

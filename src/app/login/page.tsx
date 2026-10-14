@@ -115,14 +115,14 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                {roleTab === 'admin' ? 'Trainer Email' : 'Student ID or Registered Email'}
+                {roleTab === 'admin' ? 'Trainer ID or Registered Email' : 'Student ID or Registered Email'}
               </label>
               <div className="relative">
                 <input
                   type="text"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder={roleTab === 'admin' ? 'tushar@cybrom.com' : 'STU-2026-001'}
+                  placeholder={roleTab === 'admin' ? 'Tushar1234 or tushar@cybrom.com' : 'STU-2026-001'}
                   required
                   className="clay-input w-full pl-9 pr-3 py-2.5 text-sm text-slate-800"
                 />

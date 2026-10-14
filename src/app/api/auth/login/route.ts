@@ -11,8 +11,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Please enter your username/email and password' }, { status: 400 });
     }
 
-    // Check if identifier is an email or student ID
-    let user = dbService.getUserByEmail(identifier);
+    // Check if identifier is an email, student/admin ID, or username
+    let user = dbService.getUserByIdentifier(identifier);
+    if (!user) {
+      user = dbService.getUserByEmail(identifier);
+    }
     if (!user) {
       user = dbService.getUserByStudentId(identifier);
     }
