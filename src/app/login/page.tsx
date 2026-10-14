@@ -36,12 +36,20 @@ export default function LoginPage() {
         })
       });
 
-      const data = await res.json();
+      let data: Record<string, any> = {};
+      try {
+        const text = await res.text();
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error('Connection interrupted. Please refresh the page and try again.');
+      }
+
       if (!res.ok) {
-        throw new Error(data.error || 'Authentication failed');
+        throw new Error(data?.error || `Authentication failed (HTTP ${res.status}). Please try again.`);
       }
 
       router.push(data.redirectTo || (roleTab === 'admin' ? '/admin/dashboard' : '/student/dashboard'));
+      router.refresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
