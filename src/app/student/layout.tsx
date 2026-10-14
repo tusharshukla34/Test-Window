@@ -1,0 +1,205 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import {
+  LayoutDashboard,
+  BookOpen,
+  FileCheck2,
+  Award,
+  Bell,
+  LogOut,
+  GraduationCap,
+  Menu,
+  X
+} from 'lucide-react';
+
+export default function StudentLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [user, setUser] = useState<{ name: string; student_id: string; email: string } | null>(null);
+  const [notifications, setNotifications] = useState<{ id: string; title: string; message: string; is_read: boolean }[]>([]);
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+
+  // If this is the exam attempt screen, render in distraction-free mode without standard navbar!
+  const isExamAttempt = pathname.includes('/attempt');
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(data => {
+        if (data.authenticated && data.user) {
+          setUser(data.user);
+        }
+      })
+      .catch(() => {});
+
+    fetch('/api/notifications')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setNotifications(data);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/login');
+  };
+
+  const navItems = [
+    { label: 'My Dashboard', href: '/student/dashboard', icon: LayoutDashboard },
+    { label: 'Daily Homework', href: '/student/assignments', icon: BookOpen },
+    { label: 'Online Examinations', href: '/student/exams', icon: FileCheck2 },
+    { label: 'My Results', href: '/student/results', icon: Award },
+  ];
+
+  if (isExamAttempt) {
+    // The exam workspace provides its own full-screen, high-contrast, distraction-free environment
+    return <div className="min-h-screen bg-[#f8fafc]">{children}</div>;
+  }
+
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+
+  return (
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col md:flex-row">
+      {/* Mobile Header */}
+      <div className="md:hidden bg-white px-4 py-3 border-b border-slate-200 flex items-center justify-between shadow-xs sticky top-0 z-30">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center font-bold text-sm">
+            <GraduationCap size={18} />
+          </div>
+          <div>
+            <h1 className="font-bold text-slate-800 text-sm leading-tight">{user?.name || 'Student Portal'}</h1>
+            <span className="text-[10px] text-teal-600 font-semibold">{user?.student_id || 'Student'}</span>
+          </div>
+        </div>
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="p-2 text-slate-600 rounded-lg hover:bg-slate-100"
+        >
+          {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+      </div>
+
+      {/* Sidebar Desktop */}
+      <aside className={`
+        fixed inset-y-0 left-0 z-40 w-64 bg-white/95 backdrop-blur-md border-r border-slate-200/80 p-5 flex flex-col justify-between
+        transition-transform duration-200 ease-in-out md:translate-x-0 md:static md:w-64
+        ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        <div>
+          {/* Brand */}
+          <div className="flex items-center gap-3 px-2 py-3 mb-6">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-500 to-cyan-600 text-white flex items-center justify-center font-bold shadow-md shadow-teal-100">
+              <GraduationCap size={22} />
+            </div>
+            <div>
+              <h2 className="font-bold text-slate-900 text-base leading-tight">Student Portal</h2>
+              <span className="text-xs text-teal-600 font-medium">Tushar Shukla Class</span>
+            </div>
+          </div>
+
+          {/* Navigation */}
+          <nav className="space-y-1">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href || (item.href !== '/student/dashboard' && pathname.startsWith(item.href));
+              return (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`
+                    flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all
+                    ${isActive
+                      ? 'bg-teal-50 text-teal-800 shadow-xs border border-teal-100 font-semibold'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}
+                  `}
+                >
+                  <Icon size={18} className={isActive ? 'text-teal-600' : 'text-slate-400'} />
+                  {item.label}
+                </a>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* User Card */}
+        <div className="pt-4 border-t border-slate-100">
+          <div className="bg-slate-50 rounded-xl p-3 mb-3 border border-slate-100">
+            <p className="text-xs font-bold text-slate-800 truncate">{user?.name || 'Student'}</p>
+            <p className="text-[11px] font-mono text-teal-600 font-semibold mt-0.5">{user?.student_id || 'ID Pending'}</p>
+          </div>
+
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition"
+          >
+            <LogOut size={15} /> Sign Out
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/80 px-6 py-3.5 flex items-center justify-between sticky top-0 z-20">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-teal-50 text-teal-700 border border-teal-100">
+              Student Classroom Workspace
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <button
+                onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+                className="relative p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition"
+              >
+                <Bell size={19} />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500"></span>
+                )}
+              </button>
+
+              {showNotifDropdown && (
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50 animate-in fade-in">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
+                    <h4 className="text-xs font-bold text-slate-800">Notifications</h4>
+                    <span className="text-[10px] text-slate-500">{unreadCount} unread</span>
+                  </div>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <p className="text-xs text-slate-400 py-3 text-center">No notifications</p>
+                    ) : (
+                      notifications.slice(0, 5).map(n => (
+                        <div key={n.id} className="text-xs p-2 rounded-lg bg-slate-50 border border-slate-100">
+                          <p className="font-semibold text-slate-800">{n.title}</p>
+                          <p className="text-slate-500 mt-0.5 text-[11px]">{n.message}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="h-6 w-[1px] bg-slate-200"></div>
+
+            <div className="flex items-center gap-2 text-xs font-medium text-slate-700">
+              <span className="w-7 h-7 rounded-full bg-teal-100 text-teal-700 font-bold flex items-center justify-center">
+                {user?.name ? user.name.slice(0, 2).toUpperCase() : 'ST'}
+              </span>
+              <span className="hidden sm:inline">{user?.name || 'Student'}</span>
+            </div>
+          </div>
+        </header>
+
+        <main className="p-4 sm:p-6 lg:p-8 flex-1">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}

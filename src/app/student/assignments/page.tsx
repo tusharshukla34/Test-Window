@@ -1,0 +1,339 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import {
+  BookOpen,
+  Calendar,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  FileText,
+  Upload,
+  Download,
+  Send,
+  MessageSquare
+} from 'lucide-react';
+import { ClayCard, ClayButton, Modal } from '@/components/ui/ClayComponents';
+import { Assignment, AssignmentSubmission } from '@/lib/db/types';
+
+export default function StudentAssignmentsPage() {
+  const [assignments, setAssignments] = useState<(Assignment & { submission?: AssignmentSubmission | null })[]>([]);
+  const [selectedAsg, setSelectedAsg] = useState<(Assignment & { submission?: AssignmentSubmission | null }) | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Submission Form State
+  const [textResponse, setTextResponse] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchAssignments = async () => {
+    try {
+      const res = await fetch('/api/student/assignments');
+      const data = await res.json();
+      setAssignments(data);
+    } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchAssignments();
+  }, []);
+
+  const handleOpenSubmission = (asg: Assignment & { submission?: AssignmentSubmission | null }) => {
+    setSelectedAsg(asg);
+    setTextResponse(asg.submission?.text_response || '');
+    setSelectedFile(null);
+    setSubmitSuccess(false);
+    setError(null);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAsg) return;
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      let fileUrl = selectedAsg.submission?.file_url || null;
+      let fileName = selectedAsg.submission?.file_name || null;
+      let fileSize = selectedAsg.submission?.file_size || null;
+      let fileMime = selectedAsg.submission?.file_mime || null;
+
+      // Upload file if new file chosen
+      if (selectedFile) {
+        setUploading(true);
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        const uploadRes = await fetch('/api/files/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) {
+          throw new Error(uploadData.error || 'File upload failed');
+        }
+
+        fileUrl = uploadData.file_url;
+        fileName = uploadData.file_name;
+        fileSize = uploadData.file_size;
+        fileMime = uploadData.file_mime;
+        setUploading(false);
+      }
+
+      const submitRes = await fetch(`/api/student/assignments/${selectedAsg.id}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text_response: textResponse,
+          file_url: fileUrl,
+          file_name: fileName,
+          file_size: fileSize,
+          file_mime: fileMime
+        })
+      });
+
+      const submitData = await submitRes.json();
+      if (!submitRes.ok) {
+        throw new Error(submitData.error || 'Submission failed');
+      }
+
+      setSubmitSuccess(true);
+      fetchAssignments();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error submitting homework');
+    } finally {
+      setSubmitting(false);
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+          <BookOpen size={24} className="text-teal-600" /> Daily Homework Assignments
+        </h1>
+        <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+          Complete daily tasks assigned to your batch, upload working files, and view trainer feedback.
+        </p>
+      </div>
+
+      {/* Grid of Assignments */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {assignments.map(asg => {
+          const deadline = new Date(asg.deadline);
+          const isOverdue = new Date() > deadline && !asg.submission;
+          const sub = asg.submission;
+
+          let statusBadge = (
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+              Pending
+            </span>
+          );
+
+          if (sub) {
+            if (sub.status === 'evaluated') {
+              statusBadge = (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  Evaluated ({sub.marks_awarded}/{asg.max_score} pts)
+                </span>
+              );
+            } else if (sub.is_late) {
+              statusBadge = (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                  Late Submitted
+                </span>
+              );
+            } else {
+              statusBadge = (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
+                  Under Review
+                </span>
+              );
+            }
+          } else if (isOverdue) {
+            statusBadge = (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                Overdue
+              </span>
+            );
+          }
+
+          return (
+            <ClayCard key={asg.id} className="flex flex-col justify-between hover:border-slate-300">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                    {asg.subject}
+                  </span>
+                  {statusBadge}
+                </div>
+
+                <h3 className="text-base font-extrabold text-slate-900 leading-snug">
+                  {asg.title}
+                </h3>
+
+                <p className="text-xs text-slate-600 line-clamp-3">
+                  {asg.instructions}
+                </p>
+
+                {/* Evaluated Marks & Trainer Feedback Callout */}
+                {sub && sub.status === 'evaluated' && sub.feedback && (
+                  <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-950 space-y-1">
+                    <p className="font-bold flex items-center gap-1.5 text-emerald-900">
+                      <MessageSquare size={14} /> Trainer Tushar Shukla Feedback:
+                    </p>
+                    <p className="text-[11px] text-emerald-800">{sub.feedback}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Bottom Card Actions */}
+              <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
+                <div>
+                  <div className="flex items-center gap-1 text-slate-500 text-[11px]">
+                    <Clock size={13} /> Due: {deadline.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Max Score: {asg.max_score} pts</div>
+                </div>
+
+                <ClayButton
+                  variant={sub?.status === 'evaluated' ? 'outline' : 'teal'}
+                  size="sm"
+                  onClick={() => handleOpenSubmission(asg)}
+                >
+                  {sub ? 'View / Resubmit' : 'Submit Work'}
+                </ClayButton>
+              </div>
+            </ClayCard>
+          );
+        })}
+      </div>
+
+      {/* Submission Modal */}
+      <Modal
+        isOpen={Boolean(selectedAsg)}
+        onClose={() => setSelectedAsg(null)}
+        title={selectedAsg?.title || 'Assignment Task'}
+        maxWidth="max-w-2xl"
+      >
+        {selectedAsg && (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {submitSuccess && (
+              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
+                <CheckCircle2 size={16} /> Homework submitted successfully! Your submission is now in Trainer Shukla's evaluation queue.
+              </div>
+            )}
+
+            {error && (
+              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
+                {error}
+              </div>
+            )}
+
+            {/* Complete Instructions */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Instructions & Deliverables
+              </label>
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">
+                {selectedAsg.instructions}
+              </div>
+            </div>
+
+            {/* Text Response */}
+            {(selectedAsg.submission_type === 'text_response' || selectedAsg.submission_type === 'both') && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Written Response / Explanation
+                </label>
+                <textarea
+                  rows={4}
+                  placeholder="Type your answer, derivations, numerical calculations, or comments here..."
+                  value={textResponse}
+                  onChange={(e) => setTextResponse(e.target.value)}
+                  className="clay-input w-full p-2.5 text-xs text-slate-800"
+                />
+              </div>
+            )}
+
+            {/* File Upload */}
+            {(selectedAsg.submission_type === 'file_upload' || selectedAsg.submission_type === 'both') && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Upload Deliverable File
+                </label>
+
+                <div className="p-4 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 text-center hover:bg-slate-100/60 transition cursor-pointer relative">
+                  <input
+                    type="file"
+                    onChange={handleFileChange}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  />
+                  <div className="flex flex-col items-center justify-center gap-1.5 pointer-events-none">
+                    <Upload size={22} className="text-teal-600" />
+                    <p className="text-xs font-bold text-slate-800">
+                      {selectedFile ? selectedFile.name : 'Click to select or drag and drop your file here'}
+                    </p>
+                    <p className="text-[10px] text-slate-400">
+                      Allowed formats: {selectedAsg.allowed_formats.join(', ')} (Max {selectedAsg.max_file_size_mb} MB)
+                    </p>
+                  </div>
+                </div>
+
+                {/* Existing uploaded file info */}
+                {selectedAsg.submission?.file_url && !selectedFile && (
+                  <div className="mt-2 p-2.5 rounded-lg bg-teal-50 border border-teal-100 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <FileText size={16} className="text-teal-700" />
+                      <span className="font-semibold text-teal-900">{selectedAsg.submission.file_name}</span>
+                    </div>
+                    <a
+                      href={selectedAsg.submission.file_url}
+                      download
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-teal-700 font-bold hover:underline flex items-center gap-1"
+                    >
+                      <Download size={13} /> Download
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <ClayButton
+                type="button"
+                variant="secondary"
+                onClick={() => setSelectedAsg(null)}
+              >
+                Close
+              </ClayButton>
+              <ClayButton
+                type="submit"
+                variant="teal"
+                disabled={submitting || uploading}
+              >
+                <Send size={15} /> {submitting || uploading ? 'Submitting...' : 'Confirm Submission'}
+              </ClayButton>
+            </div>
+          </form>
+        )}
+      </Modal>
+    </div>
+  );
+}
