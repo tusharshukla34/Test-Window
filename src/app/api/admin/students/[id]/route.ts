@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { dbService } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 
 export async function GET(
   req: NextRequest,
@@ -8,6 +8,7 @@ export async function GET(
 ) {
   try {
     await requireAdmin();
+    await ensureCloudSyncReady();
     const { id } = await params;
     const student = dbService.getUserById(id);
     if (!student) {
@@ -35,6 +36,7 @@ export async function PUT(
 ) {
   try {
     await requireAdmin();
+    await ensureCloudSyncReady();
     const { id } = await params;
     const body = await req.json();
 
@@ -43,6 +45,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Student not found' }, { status: 404 });
     }
 
+    await syncDatabaseToCloud();
     return NextResponse.json({ success: true, student: updated });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error updating student';
@@ -56,6 +59,7 @@ export async function DELETE(
 ) {
   try {
     await requireAdmin();
+    await ensureCloudSyncReady();
     const { id } = await params;
 
     const success = dbService.deleteStudent(id);
@@ -63,6 +67,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Student not found or cannot be deleted' }, { status: 404 });
     }
 
+    await syncDatabaseToCloud();
     return NextResponse.json({ success: true, message: 'Student account permanently deleted' });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error deleting student';

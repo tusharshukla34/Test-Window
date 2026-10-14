@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { dbService } from '@/lib/db/database';
+import { dbService, syncDatabaseToCloud } from '@/lib/db/database';
 
 export async function GET() {
   try {
@@ -60,6 +60,8 @@ export async function POST(req: NextRequest) {
         }
       }
     }
+
+    await syncDatabaseToCloud();
 
     return NextResponse.json({ success: true, exam });
   } catch (err: unknown) {

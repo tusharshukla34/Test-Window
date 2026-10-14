@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { BookOpen, Plus, Calendar, Clock, CheckCircle, FileText, ArrowRight } from 'lucide-react';
+import { BookOpen, Plus, Calendar, Clock, CheckCircle, FileText, ArrowRight, Trash2 } from 'lucide-react';
 import { ClayCard, ClayButton } from '@/components/ui/ClayComponents';
 import { Assignment } from '@/lib/db/types';
 
@@ -11,7 +11,7 @@ export default function AdminAssignmentsPage() {
   const [assignments, setAssignments] = useState<(Assignment & { recipient_batch_names: string[]; submission_count: number })[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchAssignments = () => {
     fetch('/api/admin/assignments')
       .then(res => res.json())
       .then(data => {
@@ -19,7 +19,27 @@ export default function AdminAssignmentsPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchAssignments();
   }, []);
+
+  const handleDeleteAssignment = async (id: string, title: string) => {
+    if (!window.confirm(`Are you sure you want to permanently delete "${title}"? All student submissions will also be removed.`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/assignments/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setAssignments(prev => prev.filter(a => a.id !== id));
+      } else {
+        alert('Failed to delete assignment');
+      }
+    } catch {
+      alert('Error deleting assignment');
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -102,12 +122,21 @@ export default function AdminAssignmentsPage() {
                   </div>
                 </div>
 
-                <button
-                  onClick={() => router.push(`/admin/submissions?assignment_id=${asg.id}`)}
-                  className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center gap-1 transition"
-                >
-                  Grade <ArrowRight size={13} />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => router.push(`/admin/submissions?assignment_id=${asg.id}`)}
+                    className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center gap-1 transition"
+                  >
+                    Grade <ArrowRight size={13} />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteAssignment(asg.id, asg.title)}
+                    title="Delete Assignment"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </div>
             </ClayCard>
           );

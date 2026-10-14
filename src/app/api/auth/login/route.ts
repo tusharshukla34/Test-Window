@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbService } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady } from '@/lib/db/database';
 import { verifyPassword, signToken, COOKIE_NAME } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
+    await ensureCloudSyncReady();
     const body = await req.json();
     const { identifier, password, expectedRole } = body;
 

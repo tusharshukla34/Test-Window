@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { dbService } from '@/lib/db/database';
+import { dbService, syncDatabaseToCloud } from '@/lib/db/database';
 
 export async function POST(
   req: NextRequest,
@@ -23,6 +23,8 @@ export async function POST(
       release_draft: Boolean(release_draft),
       evaluated_by: session.userId
     });
+
+    await syncDatabaseToCloud();
 
     return NextResponse.json({ success: true, submission: updated });
   } catch (err: unknown) {

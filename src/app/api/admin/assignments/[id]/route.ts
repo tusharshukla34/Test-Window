@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { dbService } from '@/lib/db/database';
+import { dbService, syncDatabaseToCloud } from '@/lib/db/database';
 
 export async function GET(
   req: NextRequest,
@@ -18,6 +18,27 @@ export async function GET(
     return NextResponse.json({ assignment, submissions });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error retrieving assignment';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    await requireAdmin();
+    const { id } = await params;
+
+    const success = dbService.deleteAssignment(id);
+    if (!success) {
+      return NextResponse.json({ error: 'Assignment not found' }, { status: 404 });
+    }
+
+    await syncDatabaseToCloud();
+    return NextResponse.json({ success: true, message: 'Assignment permanently deleted' });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error deleting assignment';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

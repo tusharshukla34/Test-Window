@@ -10,7 +10,8 @@ import {
   AlertCircle,
   BarChart3,
   Users,
-  ArrowRight
+  ArrowRight,
+  Trash2
 } from 'lucide-react';
 import { ClayCard, ClayButton, Modal } from '@/components/ui/ClayComponents';
 import { Exam, Batch, QuestionBankItem } from '@/lib/db/types';
@@ -22,6 +23,22 @@ export default function AdminExamsPage() {
   const [questions, setQuestions] = useState<QuestionBankItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  const handleDeleteExam = async (id: string, title: string) => {
+    if (!window.confirm(`Are you sure you want to delete "${title}"? All attempts and student responses for this exam will also be removed.`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/exams/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setExams(prev => prev.filter(e => e.id !== id));
+      } else {
+        alert('Failed to delete exam');
+      }
+    } catch {
+      alert('Error deleting exam');
+    }
+  };
 
   // Form State
   const [title, setTitle] = useState('');
@@ -175,13 +192,22 @@ export default function AdminExamsPage() {
                 {exam.attempt_count} attempts taken
               </span>
 
-              <ClayButton
-                variant="teal"
-                size="sm"
-                onClick={() => router.push(`/admin/exams/${exam.id}/analytics`)}
-              >
-                <BarChart3 size={14} /> Analytics & Ranks
-              </ClayButton>
+              <div className="flex items-center gap-2">
+                <ClayButton
+                  variant="teal"
+                  size="sm"
+                  onClick={() => router.push(`/admin/exams/${exam.id}/analytics`)}
+                >
+                  <BarChart3 size={14} /> Analytics & Ranks
+                </ClayButton>
+                <button
+                  onClick={() => handleDeleteExam(exam.id, exam.title)}
+                  title="Delete Exam"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
             </div>
           </ClayCard>
         ))}

@@ -52,12 +52,82 @@ let db: InstanceType<typeof Database>;
 
 try {
   db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
+  if (isServerless) {
+    db.pragma('journal_mode = DELETE');
+  } else {
+    db.pragma('journal_mode = WAL');
+  }
   db.pragma('foreign_keys = ON');
 } catch (err) {
   console.warn('[SQLITE DISK OPEN FAILED, FALLING BACK TO MEMORY]:', err);
   db = new Database(':memory:');
   db.pragma('foreign_keys = ON');
+}
+
+export function getDatabasePath(): string {
+  return dbPath;
+}
+
+let lastCheckedAt = 0;
+let localVersionTag: string | null = null;
+let syncLock: Promise<void> | null = null;
+
+export async function ensureCloudSyncReady(force = false): Promise<void> {
+  if (!isServerless && !process.env.FORCE_CLOUD_SYNC) return;
+
+  if (syncLock) {
+    await syncLock;
+    return;
+  }
+
+  const now = Date.now();
+  if (!force && localVersionTag && now - lastCheckedAt < 2500) {
+    return;
+  }
+  lastCheckedAt = now;
+
+  syncLock = (async () => {
+    try {
+      const { getCloudDatabaseMetadata, pullDatabaseFromCloud } = await import('./cloudSync');
+      const meta = await getCloudDatabaseMetadata();
+      if (!meta) return;
+
+      if (!localVersionTag || meta.versionTag !== localVersionTag) {
+        const res = await pullDatabaseFromCloud(dbPath);
+        if (res.success) {
+          localVersionTag = res.versionTag || meta.versionTag;
+          try {
+            db.close();
+          } catch {}
+          db = new Database(dbPath);
+          db.pragma('journal_mode = DELETE');
+          db.pragma('foreign_keys = ON');
+        }
+      }
+    } catch (err) {
+      console.warn('[CLOUD SYNC]: ensureCloudSyncReady warning:', err);
+    } finally {
+      syncLock = null;
+    }
+  })();
+
+  await syncLock;
+}
+
+export async function syncDatabaseToCloud(): Promise<boolean> {
+  try {
+    const { pushDatabaseToCloud } = await import('./cloudSync');
+    const res = await pushDatabaseToCloud(dbPath);
+    if (res.success) {
+      localVersionTag = res.versionTag;
+      lastCheckedAt = Date.now();
+      return true;
+    }
+    return false;
+  } catch (err) {
+    console.warn('[CLOUD SYNC]: Push warning:', err);
+    return false;
+  }
 }
 
 // Initialize database schema
@@ -1253,6 +1323,13 @@ export const dbService = {
     return this.getAssignmentById(id)!;
   },
 
+  deleteAssignment(id: string): boolean {
+    db.prepare('DELETE FROM assignment_submissions WHERE assignment_id = ?').run(id);
+    db.prepare('DELETE FROM assignment_recipients WHERE assignment_id = ?').run(id);
+    const res = db.prepare('DELETE FROM assignments WHERE id = ?').run(id);
+    return res.changes > 0;
+  },
+
   // Submissions & Evaluation
   submitAssignment(data: {
     assignment_id: string;
@@ -1640,6 +1717,18 @@ export const dbService = {
     });
 
     return this.getExamById(id)!;
+  },
+
+  deleteExam(id: string): boolean {
+    const attempts = db.prepare('SELECT id FROM exam_attempts WHERE exam_id = ?').all(id) as { id: string }[];
+    for (const att of attempts) {
+      db.prepare('DELETE FROM attempt_responses WHERE attempt_id = ?').run(att.id);
+    }
+    db.prepare('DELETE FROM exam_attempts WHERE exam_id = ?').run(id);
+    db.prepare('DELETE FROM exam_batches WHERE exam_id = ?').run(id);
+    db.prepare('DELETE FROM exam_questions WHERE exam_id = ?').run(id);
+    const res = db.prepare('DELETE FROM exams WHERE id = ?').run(id);
+    return res.changes > 0;
   },
 
   // ============================================================================

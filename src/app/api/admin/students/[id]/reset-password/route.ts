@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, hashPassword } from '@/lib/auth';
-import { dbService } from '@/lib/db/database';
+import { dbService, syncDatabaseToCloud } from '@/lib/db/database';
 
 export async function POST(
   req: NextRequest,
@@ -22,6 +22,8 @@ export async function POST(
     if (!success) {
       return NextResponse.json({ error: 'Failed to reset password. Student not found.' }, { status: 404 });
     }
+
+    await syncDatabaseToCloud();
 
     return NextResponse.json({ success: true, message: 'Password reset successfully' });
   } catch (err: unknown) {

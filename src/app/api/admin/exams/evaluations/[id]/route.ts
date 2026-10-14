@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbService } from '@/lib/db/database';
+import { dbService, syncDatabaseToCloud } from '@/lib/db/database';
 import { getSessionUser } from '@/lib/auth';
 
 export async function GET(
@@ -44,6 +44,8 @@ export async function POST(
       trainer_feedback: body.trainer_feedback,
       audit_reason: body.audit_reason
     });
+
+    await syncDatabaseToCloud();
 
     return NextResponse.json({ success: true, attempt: updated });
   } catch (err: unknown) {

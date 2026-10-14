@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { dbService } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 
 export async function GET() {
   try {
     await requireAdmin();
+    await ensureCloudSyncReady();
     const assignments = dbService.getAllAssignments();
     return NextResponse.json(assignments);
   } catch (err: unknown) {
@@ -69,6 +70,8 @@ export async function POST(req: NextRequest) {
         }
       }
     }
+
+    await syncDatabaseToCloud();
 
     return NextResponse.json({ success: true, assignment });
   } catch (err: unknown) {

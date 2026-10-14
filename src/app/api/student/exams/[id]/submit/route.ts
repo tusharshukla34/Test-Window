@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireStudent } from '@/lib/auth';
-import { dbService } from '@/lib/db/database';
+import { dbService, syncDatabaseToCloud } from '@/lib/db/database';
 
 export async function POST(
   req: NextRequest,
@@ -17,6 +17,8 @@ export async function POST(
     }
 
     const finalizedAttempt = dbService.finalizeExamAttempt(attempt_id, session.userId);
+
+    await syncDatabaseToCloud();
 
     return NextResponse.json({
       success: true,

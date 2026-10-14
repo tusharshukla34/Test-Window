@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { dbService } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 
 export async function GET() {
   try {
     await requireAdmin();
+    await ensureCloudSyncReady();
     const batches = dbService.getAllBatches();
     return NextResponse.json(batches);
   } catch (err: unknown) {
@@ -16,6 +17,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     await requireAdmin();
+    await ensureCloudSyncReady();
     const body = await req.json();
     const { name, description } = body;
 
@@ -28,6 +30,7 @@ export async function POST(req: NextRequest) {
       description: description?.trim()
     });
 
+    await syncDatabaseToCloud();
     return NextResponse.json({ success: true, batch });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to create batch';

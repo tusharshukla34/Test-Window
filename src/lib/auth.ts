@@ -2,6 +2,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import bcrypt from 'bcryptjs';
 import { cookies } from 'next/headers';
 import { UserProfile, UserRole } from './db/types';
+import { ensureCloudSyncReady } from './db/database';
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.AUTH_SECRET || 'tushar-portal-secure-jwt-secret-key-32-chars-long-minimum-2026'
@@ -57,6 +58,7 @@ export async function getSession(): Promise<SessionPayload | null> {
 }
 
 export async function requireAuth(): Promise<SessionPayload> {
+  await ensureCloudSyncReady();
   const session = await getSession();
   if (!session) {
     throw new Error('Unauthorized');
@@ -81,6 +83,7 @@ export async function requireStudent(): Promise<SessionPayload> {
 }
 
 export async function getSessionUser() {
+  await ensureCloudSyncReady();
   const session = await getSession();
   if (!session) return null;
   return {

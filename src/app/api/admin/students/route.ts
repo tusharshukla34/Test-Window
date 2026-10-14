@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, hashPassword } from '@/lib/auth';
-import { dbService } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 
 export async function GET() {
   try {
     await requireAdmin();
+    await ensureCloudSyncReady();
     const students = dbService.getAllStudents();
     return NextResponse.json(students);
   } catch (err: unknown) {
@@ -42,6 +43,8 @@ export async function POST(req: NextRequest) {
       phone,
       batch_ids
     });
+
+    await syncDatabaseToCloud();
 
     return NextResponse.json({ success: true, student: newStudent });
   } catch (err: unknown) {

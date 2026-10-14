@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { dbService } from '@/lib/db/database';
+import { dbService, syncDatabaseToCloud } from '@/lib/db/database';
 
 export async function GET() {
   try {
@@ -36,6 +36,8 @@ export async function POST(req: NextRequest) {
       negative_penalty: Number(negative_penalty) || 0.25,
       created_by: session.userId
     });
+
+    await syncDatabaseToCloud();
 
     return NextResponse.json({ success: true, question });
   } catch (err: unknown) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbService } from '@/lib/db/database';
+import { dbService, syncDatabaseToCloud } from '@/lib/db/database';
 import { getSessionUser } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
@@ -26,6 +26,8 @@ export async function POST(req: NextRequest) {
       trainer_id: user.id,
       audit_note
     });
+
+    await syncDatabaseToCloud();
 
     return NextResponse.json({
       success: true,
