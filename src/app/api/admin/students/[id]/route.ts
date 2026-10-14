@@ -49,3 +49,23 @@ export async function PUT(
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    await requireAdmin();
+    const { id } = await params;
+
+    const success = dbService.deleteStudent(id);
+    if (!success) {
+      return NextResponse.json({ error: 'Student not found or cannot be deleted' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, message: 'Student account permanently deleted' });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error deleting student';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

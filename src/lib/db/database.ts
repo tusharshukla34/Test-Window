@@ -1047,6 +1047,26 @@ export const dbService = {
     return res.changes > 0;
   },
 
+  deleteStudent(id: string): boolean {
+    const user = db.prepare('SELECT id, role FROM profiles WHERE id = ?').get(id) as { id: string; role: string } | undefined;
+    if (!user || user.role !== 'student') return false;
+
+    // Explicit cleanup of all student associations
+    db.prepare('DELETE FROM batch_memberships WHERE user_id = ?').run(id);
+    db.prepare('DELETE FROM assignment_recipients WHERE student_id = ?').run(id);
+    db.prepare('DELETE FROM assignment_submissions WHERE student_id = ?').run(id);
+
+    const attempts = db.prepare('SELECT id FROM exam_attempts WHERE student_id = ?').all(id) as { id: string }[];
+    for (const att of attempts) {
+      db.prepare('DELETE FROM attempt_responses WHERE attempt_id = ?').run(att.id);
+    }
+    db.prepare('DELETE FROM exam_attempts WHERE student_id = ?').run(id);
+    db.prepare('DELETE FROM notifications WHERE user_id = ?').run(id);
+
+    const res = db.prepare("DELETE FROM profiles WHERE id = ? AND role = 'student'").run(id);
+    return res.changes > 0;
+  },
+
   // Batches
   getAllBatches(): (Batch & { student_count: number })[] {
     const rows = db.prepare(`

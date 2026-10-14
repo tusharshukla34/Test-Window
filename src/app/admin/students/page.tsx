@@ -10,7 +10,8 @@ import {
   CheckCircle2,
   Lock,
   Mail,
-  UserCheck
+  UserCheck,
+  Trash2
 } from 'lucide-react';
 import { ClayCard, ClayButton, Modal } from '@/components/ui/ClayComponents';
 import { UserProfile, Batch } from '@/lib/db/types';
@@ -22,6 +23,8 @@ export default function StudentsPage() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isResetOpen, setIsResetOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<UserProfile | null>(null);
+  const [studentToDelete, setStudentToDelete] = useState<UserProfile | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // New Student Form
   const [name, setName] = useState('');
@@ -122,6 +125,28 @@ export default function StudentsPage() {
       });
       fetchData();
     } catch {}
+  };
+
+  const handleDeleteStudent = async () => {
+    if (!studentToDelete) return;
+    setIsDeleting(true);
+
+    try {
+      const res = await fetch(`/api/admin/students/${studentToDelete.id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        setStudentToDelete(null);
+        fetchData();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete student');
+      }
+    } catch {
+      alert('Error connecting to server. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const filteredStudents = students.filter(s =>
@@ -236,11 +261,18 @@ export default function StudentsPage() {
                           onClick={() => handleToggleStatus(student)}
                           className={`px-2 py-1 text-[11px] font-semibold rounded-lg transition ${
                             student.status === 'active'
-                              ? 'text-rose-600 hover:bg-rose-50'
+                              ? 'text-amber-600 hover:bg-amber-50'
                               : 'text-emerald-600 hover:bg-emerald-50'
                           }`}
                         >
                           {student.status === 'active' ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button
+                          onClick={() => setStudentToDelete(student)}
+                          className="px-2 py-1 text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition inline-flex items-center gap-1"
+                          title="Permanently Delete Student Account"
+                        >
+                          <Trash2 size={13} /> Delete
                         </button>
                       </div>
                     </td>
@@ -408,6 +440,48 @@ export default function StudentsPage() {
             </ClayButton>
           </div>
         </form>
+      </Modal>
+
+      {/* Delete Student Confirmation Modal */}
+      <Modal
+        isOpen={Boolean(studentToDelete)}
+        onClose={() => !isDeleting && setStudentToDelete(null)}
+        title="Permanently Delete Student Account"
+      >
+        <div className="space-y-4">
+          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
+            <p className="font-semibold text-rose-900 mb-1 text-sm">
+              Permanently delete student <span className="underline font-bold">"{studentToDelete?.name}"</span>?
+            </p>
+            <div className="mt-2.5 space-y-1 font-mono text-[11px] bg-white/80 p-2.5 rounded-lg border border-rose-200/70">
+              <p><span className="text-slate-500 font-sans">Student ID:</span> <span className="font-bold text-indigo-700">{studentToDelete?.student_id}</span></p>
+              <p><span className="text-slate-500 font-sans">Email:</span> <span className="font-bold text-slate-800">{studentToDelete?.email}</span></p>
+            </div>
+            <p className="text-rose-700 leading-relaxed mt-2.5">
+              This action will completely remove this student record, unenroll them from all batches, and delete their exam attempts and assignment submissions. <strong>This action cannot be undone.</strong>
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <ClayButton
+              type="button"
+              variant="secondary"
+              disabled={isDeleting}
+              onClick={() => setStudentToDelete(null)}
+            >
+              Cancel
+            </ClayButton>
+            <ClayButton
+              type="button"
+              variant="danger"
+              disabled={isDeleting}
+              onClick={handleDeleteStudent}
+              className="bg-rose-600 text-white hover:bg-rose-700"
+            >
+              {isDeleting ? 'Deleting...' : 'Yes, Permanently Delete'}
+            </ClayButton>
+          </div>
+        </div>
       </Modal>
     </div>
   );

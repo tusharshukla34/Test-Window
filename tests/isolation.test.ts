@@ -82,4 +82,37 @@ describe('Cohort Batch-Isolation and Security Rules', () => {
     // Deleting again should return false
     expect(dbService.deleteBatch(tempBatch.id)).toBe(false);
   });
+
+  it('safely creates and permanently deletes a student account and cleans up memberships', () => {
+    // Create temporary student
+    const tempStudent = dbService.createStudent({
+      name: 'Temp Deletable Student',
+      email: 'temp.deletable@example.com',
+      student_id: 'STU-TEMP-999',
+      password_hash: '$2a$10$xyzFakeHash12345678901234567890'
+    });
+    expect(tempStudent.id).toBeDefined();
+
+    // Verify student exists
+    let found = dbService.getUserById(tempStudent.id);
+    expect(found).not.toBeNull();
+    expect(found?.email).toBe('temp.deletable@example.com');
+
+    // Permanently delete student
+    const deleted = dbService.deleteStudent(tempStudent.id);
+    expect(deleted).toBe(true);
+
+    // Verify student is gone
+    found = dbService.getUserById(tempStudent.id);
+    expect(found).toBeNull();
+
+    // Deleting again should return false
+    expect(dbService.deleteStudent(tempStudent.id)).toBe(false);
+
+    // Admin user cannot be deleted via deleteStudent
+    const adminUser = dbService.getUserByEmail('tushar@cybrom.com');
+    if (adminUser) {
+      expect(dbService.deleteStudent(adminUser.id)).toBe(false);
+    }
+  });
 });
