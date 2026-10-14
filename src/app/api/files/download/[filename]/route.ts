@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
+import { getUploadsDir } from '@/lib/db/database';
 import fs from 'fs';
 import path from 'path';
 
@@ -13,7 +14,7 @@ export async function GET(
 
     // Prevent path traversal
     const safeFilename = path.basename(filename);
-    const filePath = path.join(process.cwd(), 'data', 'uploads', safeFilename);
+    const filePath = path.join(getUploadsDir(), safeFilename);
 
     if (!fs.existsSync(filePath)) {
       // Mock dummy content if mock-sample.pdf requested

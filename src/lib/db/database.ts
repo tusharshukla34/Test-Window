@@ -17,23 +17,48 @@ import {
   ExamQuestionClient,
 } from './types';
 
-// Ensure data directory exists
-const dataDir = path.join(process.cwd(), 'data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
+// Ensure data directory exists (supports writable /tmp on serverless environments like Vercel)
+const isServerless = Boolean(
+  process.env.VERCEL ||
+  process.env.VERCEL_ENV ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  process.env.NOW_REGION
+);
+
+const dataDir = isServerless ? path.join('/tmp', 'portal-data') : path.join(process.cwd(), 'data');
+
+try {
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+} catch (err) {
+  console.warn('[DB DATA DIR INIT]:', err);
 }
 
-const uploadsDir = path.join(dataDir, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+export function getUploadsDir(): string {
+  const dir = path.join(dataDir, 'uploads');
+  try {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  } catch {}
+  return dir;
 }
+
+getUploadsDir();
 
 const dbPath = path.join(dataDir, 'portal.db');
-const db = new Database(dbPath);
+let db: InstanceType<typeof Database>;
 
-// Enable WAL mode for high concurrency
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+try {
+  db = new Database(dbPath);
+  db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
+} catch (err) {
+  console.warn('[SQLITE DISK OPEN FAILED, FALLING BACK TO MEMORY]:', err);
+  db = new Database(':memory:');
+  db.pragma('foreign_keys = ON');
+}
 
 // Initialize database schema
 function initSchema() {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
+import { getUploadsDir } from '@/lib/db/database';
 import fs from 'fs';
 import path from 'path';
 
@@ -29,12 +30,7 @@ export async function POST(req: NextRequest) {
     }
 
     const safeBaseName = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
-    const uploadDir = path.join(process.cwd(), 'data', 'uploads');
-
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-
+    const uploadDir = getUploadsDir();
     const filePath = path.join(uploadDir, safeBaseName);
     const bytes = await file.arrayBuffer();
     fs.writeFileSync(filePath, Buffer.from(bytes));
