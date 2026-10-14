@@ -2,27 +2,22 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShieldCheck, GraduationCap, Lock, Mail, ArrowRight, Sparkles, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, GraduationCap, Lock, Mail, ArrowRight, Sparkles } from 'lucide-react';
 import { ClayCard, ClayButton } from '@/components/ui/ClayComponents';
 
 export default function LoginPage() {
   const router = useRouter();
   const [roleTab, setRoleTab] = useState<'admin' | 'student'>('admin');
-  const [identifier, setIdentifier] = useState('tushar@cybrom.com');
-  const [password, setPassword] = useState('Password@123');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleTabChange = (role: 'admin' | 'student') => {
     setRoleTab(role);
     setError(null);
-    if (role === 'admin') {
-      setIdentifier('tushar@cybrom.com');
-      setPassword('Password@123');
-    } else {
-      setIdentifier('STU-2026-001');
-      setPassword('Password@123');
-    }
+    setIdentifier('');
+    setPassword('');
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -52,13 +47,6 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const loadDemoAccount = (id: string, pass: string, role: 'admin' | 'student') => {
-    setRoleTab(role);
-    setIdentifier(id);
-    setPassword(pass);
-    setError(null);
   };
 
   return (
@@ -166,58 +154,6 @@ export default function LoginPage() {
               {!loading && <ArrowRight size={16} />}
             </ClayButton>
           </form>
-
-          {/* Quick 1-Click Demo Accounts */}
-          <div className="mt-6 pt-5 border-t border-slate-100">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2.5 text-center">
-              Quick 1-Click Local Demo Credentials
-            </p>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => loadDemoAccount('tushar@cybrom.com', 'Password@123', 'admin')}
-                className="p-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-left border border-indigo-100 transition"
-              >
-                <div className="font-bold flex items-center gap-1">
-                  <CheckCircle2 size={12} /> Tushar (Trainer)
-                </div>
-                <div className="text-[10px] text-indigo-500">tushar@cybrom.com</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => loadDemoAccount('STU-2026-001', 'Password@123', 'student')}
-                className="p-2 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 text-left border border-teal-100 transition"
-              >
-                <div className="font-bold flex items-center gap-1">
-                  <CheckCircle2 size={12} /> Rahul (9 AM & 5 PM)
-                </div>
-                <div className="text-[10px] text-teal-600 font-mono">STU-2026-001</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => loadDemoAccount('STU-2026-002', 'Password@123', 'student')}
-                className="p-2 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 text-left border border-teal-100 transition"
-              >
-                <div className="font-bold flex items-center gap-1">
-                  <CheckCircle2 size={12} /> Priya (9 AM Batch)
-                </div>
-                <div className="text-[10px] text-teal-600 font-mono">STU-2026-002</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => loadDemoAccount('STU-2026-003', 'Password@123', 'student')}
-                className="p-2 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 text-left border border-teal-100 transition"
-              >
-                <div className="font-bold flex items-center gap-1">
-                  <CheckCircle2 size={12} /> Amit (1 PM Batch)
-                </div>
-                <div className="text-[10px] text-teal-600 font-mono">STU-2026-003</div>
-              </button>
-            </div>
-          </div>
         </ClayCard>
       </div>
     </div>
