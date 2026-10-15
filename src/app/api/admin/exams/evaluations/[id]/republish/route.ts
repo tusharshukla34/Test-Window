@@ -29,6 +29,35 @@ export async function POST(
       trainer_feedback: body.trainer_feedback
     });
 
+    // Real-Time Google Sheet Sync: Updates student result in dedicated exam sheet tab automatically
+    try {
+      const exam = dbService.getExamById(republished.exam_id);
+      const student = dbService.getUserById(republished.student_id);
+      const batch = republished.batch_id ? dbService.getBatchById(republished.batch_id) : null;
+      if (exam && student) {
+        const { syncExamResult } = await import('@/lib/services/googleSheets');
+        syncExamResult({
+          exam_id: exam.id,
+          exam_title: exam.title,
+          student_id: student.student_id || student.id,
+          student_id_code: student.student_id,
+          student_name: student.name,
+          student_email: student.email,
+          batch_name: batch?.name || 'General Batch',
+          score: republished.total_score !== null && republished.total_score !== undefined ? republished.total_score : 0,
+          max_marks: exam.max_marks,
+          percentage: republished.percentage !== null && republished.percentage !== undefined ? republished.percentage : 0,
+          accuracy: republished.accuracy !== null && republished.accuracy !== undefined ? republished.accuracy : 0,
+          total_correct: republished.total_correct || 0,
+          total_incorrect: republished.total_incorrect || 0,
+          total_unattempted: republished.total_unattempted || 0,
+          time_spent_mins: Math.round((republished.time_spent_seconds || 0) / 60),
+          submitted_at: republished.submitted_at || new Date().toISOString(),
+          evaluation_status: republished.evaluation_status || 'evaluated'
+        });
+      }
+    } catch {}
+
     return NextResponse.json({ success: true, attempt: republished });
   } catch (err: unknown) {
     console.error('Error republishing attempt evaluation:', err);
