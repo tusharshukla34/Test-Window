@@ -13,15 +13,17 @@ export async function POST(
 
     await ensureCloudSyncReady();
 
-    const { text_response, file_url, file_name, file_size, file_mime } = body;
+    const { text_response, file_url, file_name, file_size, file_mime, batch_id } = body;
 
     const studentBatches = dbService.getStudentBatches(session.userId);
-    const primaryBatchId = studentBatches.length > 0 ? studentBatches[0].id : undefined;
+    const asg = dbService.getAssignmentById(id);
+    const matchingBatch = studentBatches.find(sb => asg?.target_batches?.includes(sb.id));
+    const targetBatchId = batch_id || matchingBatch?.id || (studentBatches.length > 0 ? studentBatches[0].id : undefined);
 
     const submission = dbService.submitAssignment({
       assignment_id: id,
       student_id: session.userId,
-      batch_id: primaryBatchId,
+      batch_id: targetBatchId,
       text_response,
       file_url,
       file_name,

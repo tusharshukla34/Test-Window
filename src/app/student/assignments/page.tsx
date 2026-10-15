@@ -16,10 +16,13 @@ import {
 import { ClayCard, ClayButton, Modal } from '@/components/ui/ClayComponents';
 import { Assignment, AssignmentSubmission } from '@/lib/db/types';
 
+let cachedStudentAssignments: (Assignment & { submission?: AssignmentSubmission | null; batch_names?: string[] })[] | null = null;
+
 export default function StudentAssignmentsPage() {
-  const [assignments, setAssignments] = useState<(Assignment & { submission?: AssignmentSubmission | null })[]>([]);
-  const [selectedAsg, setSelectedAsg] = useState<(Assignment & { submission?: AssignmentSubmission | null }) | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [assignments, setAssignments] = useState<(Assignment & { submission?: AssignmentSubmission | null; batch_names?: string[] })[]>(cachedStudentAssignments || []);
+  const [selectedAsg, setSelectedAsg] = useState<(Assignment & { submission?: AssignmentSubmission | null; batch_names?: string[] }) | null>(null);
+  const [loading, setLoading] = useState(!cachedStudentAssignments);
+  const [selectedBatchFilter, setSelectedBatchFilter] = useState<string>('all');
 
   // Submission Form State
   const [textResponse, setTextResponse] = useState('');
@@ -33,7 +36,10 @@ export default function StudentAssignmentsPage() {
     try {
       const res = await fetch('/api/student/assignments');
       const data = await res.json();
-      setAssignments(data);
+      if (Array.isArray(data)) {
+        setAssignments(data);
+        cachedStudentAssignments = data;
+      }
     } catch {}
     setLoading(false);
   };
@@ -119,70 +125,120 @@ export default function StudentAssignmentsPage() {
     }
   };
 
+  const allBatchNames = Array.from(new Set(assignments.flatMap(a => a.batch_names || []))).filter(Boolean);
+  const filteredAssignments = selectedBatchFilter === 'all'
+    ? assignments
+    : assignments.filter(a => a.batch_names?.includes(selectedBatchFilter));
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-          <BookOpen size={24} className="text-teal-600 shrink-0" /> Daily Homework Assignments
-        </h1>
-        <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-          Complete daily tasks assigned to your batch, upload working files, and view trainer feedback.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <BookOpen size={24} className="text-teal-600 shrink-0" /> Daily Homework Assignments
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Complete daily tasks assigned to your batch, upload working files, and view trainer feedback.
+          </p>
+        </div>
+
+        {/* Batch Filter Buttons if enrolled in multiple batches */}
+        {allBatchNames.length > 1 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+            <button
+              onClick={() => setSelectedBatchFilter('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
+                selectedBatchFilter === 'all'
+                  ? 'bg-teal-600 text-white shadow-xs'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              All Cohorts ({assignments.length})
+            </button>
+            {allBatchNames.map(bName => (
+              <button
+                key={bName}
+                onClick={() => setSelectedBatchFilter(bName)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
+                  selectedBatchFilter === bName
+                    ? 'bg-teal-600 text-white shadow-xs'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                {bName}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Grid of Assignments */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {assignments.map(asg => {
-          const deadline = new Date(asg.deadline);
-          const isOverdue = new Date() > deadline && !asg.submission;
-          const sub = asg.submission;
+      {filteredAssignments.length === 0 ? (
+        <ClayCard className="text-center py-12">
+          <BookOpen className="mx-auto text-slate-300 mb-2" size={36} />
+          <p className="text-sm font-bold text-slate-700">No Assignments Available</p>
+          <p className="text-xs text-slate-500 mt-1">There are no homework tasks assigned for this batch at this time.</p>
+        </ClayCard>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filteredAssignments.map(asg => {
+            const deadline = new Date(asg.deadline);
+            const isOverdue = new Date() > deadline && !asg.submission;
+            const sub = asg.submission;
 
-          let statusBadge = (
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-              Pending
-            </span>
-          );
+            let statusBadge = (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                Pending
+              </span>
+            );
 
-          if (sub) {
-            if (sub.status === 'evaluated') {
+            if (sub) {
+              if (sub.status === 'evaluated') {
+                statusBadge = (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    Evaluated ({sub.marks_awarded}/{asg.max_score} pts)
+                  </span>
+                );
+              } else if (sub.is_late) {
+                statusBadge = (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                    Late Submitted
+                  </span>
+                );
+              } else {
+                statusBadge = (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
+                    Under Review
+                  </span>
+                );
+              }
+            } else if (isOverdue) {
               statusBadge = (
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                  Evaluated ({sub.marks_awarded}/{asg.max_score} pts)
-                </span>
-              );
-            } else if (sub.is_late) {
-              statusBadge = (
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                  Late Submitted
-                </span>
-              );
-            } else {
-              statusBadge = (
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
-                  Under Review
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                  Overdue
                 </span>
               );
             }
-          } else if (isOverdue) {
-            statusBadge = (
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                Overdue
-              </span>
-            );
-          }
 
-          return (
-            <ClayCard key={asg.id} className="flex flex-col justify-between hover:border-slate-300">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                    {asg.subject}
-                  </span>
-                  {statusBadge}
-                </div>
+            return (
+              <ClayCard key={asg.id} className="flex flex-col justify-between hover:border-slate-300">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                        {asg.subject}
+                      </span>
+                      {asg.batch_names && asg.batch_names.length > 0 && asg.batch_names.map((bName, i) => (
+                        <span key={i} className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
+                          {bName}
+                        </span>
+                      ))}
+                    </div>
+                    {statusBadge}
+                  </div>
 
-                <h3 className="text-base font-extrabold text-slate-900 leading-snug break-words">
+                  <h3 className="text-base font-extrabold text-slate-900 leading-snug break-words">
                   {asg.title}
                 </h3>
 
@@ -222,7 +278,8 @@ export default function StudentAssignmentsPage() {
             </ClayCard>
           );
         })}
-      </div>
+        </div>
+      )}
 
       {/* Submission Modal */}
       <Modal

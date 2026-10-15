@@ -15,6 +15,7 @@ import {
   NotificationItem,
   MatrixStudentRow,
   ExamQuestionClient,
+  StudentBatchBreakdown,
 } from './types';
 
 // Ensure data directory exists (supports writable /tmp on serverless environments like Vercel)
@@ -114,7 +115,30 @@ export async function ensureCloudSyncReady(force = false): Promise<void> {
   await syncLock;
 }
 
-export async function syncDatabaseToCloud(): Promise<boolean> {
+let debouncePushTimer: NodeJS.Timeout | null = null;
+
+export async function syncDatabaseToCloud(forceSync = false): Promise<boolean> {
+  // On local machine / non-serverless:
+  // Data is ALREADY written to SQLite disk in < 1ms.
+  // We trigger cloud backup in the background so HTTP responses return in 5ms instead of waiting 2-4 seconds!
+  if (!isServerless && !process.env.FORCE_CLOUD_SYNC && !forceSync) {
+    if (debouncePushTimer) clearTimeout(debouncePushTimer);
+    debouncePushTimer = setTimeout(async () => {
+      try {
+        const { pushDatabaseToCloud } = await import('./cloudSync');
+        const res = await pushDatabaseToCloud(dbPath);
+        if (res.success) {
+          localVersionTag = res.versionTag;
+          lastCheckedAt = Date.now();
+        }
+      } catch (err) {
+        console.warn('[BACKGROUND CLOUD SYNC]:', err);
+      }
+    }, 300);
+    return true;
+  }
+
+  // Serverless or forced synchronous upload
   try {
     const { pushDatabaseToCloud } = await import('./cloudSync');
     const res = await pushDatabaseToCloud(dbPath);
@@ -1014,7 +1038,7 @@ export const dbService = {
     });
   },
 
-  getAssignmentsForStudent(studentId: string): (Assignment & { submission?: AssignmentSubmission | null })[] {
+  getAssignmentsForStudent(studentId: string): (Assignment & { submission?: AssignmentSubmission | null; batch_names?: string[] })[] {
     // Only fetch assignments targeted to batches that this student belongs to!
     const assignments = db.prepare(`
       SELECT DISTINCT a.* FROM assignments a
@@ -1030,12 +1054,22 @@ export const dbService = {
       ORDER BY version DESC LIMIT 1
     `);
 
+    const getBatchesStmt = db.prepare(`
+      SELECT b.name FROM batches b
+      JOIN assignment_recipients ar ON b.id = ar.batch_id
+      JOIN batch_memberships bm ON b.id = bm.batch_id
+      WHERE ar.assignment_id = ? AND bm.user_id = ?
+      ORDER BY b.name ASC
+    `);
+
     return assignments.map(a => {
       const sub = getSub.get(a.id, studentId) as AssignmentSubmission | undefined;
+      const bRows = getBatchesStmt.all(a.id, studentId) as { name: string }[];
       return {
         ...a,
         allowed_formats: typeof a.allowed_formats === 'string' ? (a.allowed_formats as string).split(',') : a.allowed_formats,
-        submission: sub || null
+        submission: sub || null,
+        batch_names: bRows.map(r => r.name)
       };
     });
   },
@@ -2174,6 +2208,7 @@ export const dbService = {
     completed_exams: number;
     recent_submissions: (AssignmentSubmission & { assignment_title: string })[];
     recent_exam_results: (ExamAttempt & { exam_title: string; max_marks: number })[];
+    batch_breakdowns: StudentBatchBreakdown[];
   } {
     const student = this.getUserById(studentId)!;
     const batches = this.getStudentBatches(studentId);
@@ -2220,6 +2255,122 @@ export const dbService = {
       ORDER BY att.submitted_at DESC LIMIT 5
     `).all(studentId) as (ExamAttempt & { exam_title: string; max_marks: number })[];
 
+    // Calculate individual breakdown for each batch this student is assigned to
+    const getBatchAssignmentsStmt = db.prepare(`
+      SELECT DISTINCT a.* FROM assignments a
+      JOIN assignment_recipients ar ON a.id = ar.assignment_id
+      WHERE ar.batch_id = ? AND a.status = 'published'
+      ORDER BY a.deadline ASC
+    `);
+
+    const getBatchExamsStmt = db.prepare(`
+      SELECT DISTINCT e.* FROM exams e
+      JOIN exam_batches eb ON e.id = eb.exam_id
+      WHERE eb.batch_id = ? AND e.status = 'published'
+      ORDER BY e.created_at DESC
+    `);
+
+    const getSubStmt = db.prepare(`
+      SELECT * FROM assignment_submissions
+      WHERE assignment_id = ? AND student_id = ?
+      ORDER BY version DESC LIMIT 1
+    `);
+
+    const getAttemptStmt = db.prepare(`
+      SELECT * FROM exam_attempts
+      WHERE exam_id = ? AND student_id = ?
+    `);
+
+    const batchBreakdowns: StudentBatchBreakdown[] = batches.map(b => {
+      const bAssignments = getBatchAssignmentsStmt.all(b.id) as Assignment[];
+      const bExams = getBatchExamsStmt.all(b.id) as Exam[];
+
+      let bPending = 0;
+      let bSubmitted = 0;
+      let bEvaluated = 0;
+      let bOverdue = 0;
+
+      const assignmentsList = bAssignments.map(a => {
+        const sub = getSubStmt.get(a.id, studentId) as AssignmentSubmission | undefined;
+        let status: 'pending' | 'submitted' | 'evaluated' | 'overdue' = 'pending';
+        let marks: number | null = null;
+
+        if (sub) {
+          bSubmitted++;
+          if (sub.status === 'evaluated') {
+            bEvaluated++;
+            status = 'evaluated';
+            marks = sub.marks_awarded ?? null;
+          } else {
+            status = 'submitted';
+          }
+        } else {
+          if (now > new Date(a.deadline)) {
+            bOverdue++;
+            status = 'overdue';
+          } else {
+            bPending++;
+            status = 'pending';
+          }
+        }
+
+        return {
+          id: a.id,
+          title: a.title,
+          subject: a.subject,
+          deadline: a.deadline,
+          status,
+          marks_awarded: marks,
+          max_score: a.max_score
+        };
+      });
+
+      let bUpcomingExams = 0;
+      let bCompletedExams = 0;
+
+      const examsList = bExams.map(e => {
+        const att = getAttemptStmt.get(e.id, studentId) as ExamAttempt | undefined;
+        let status: 'available' | 'in_progress' | 'completed' = 'available';
+
+        if (att) {
+          if (att.status === 'completed') {
+            bCompletedExams++;
+            status = 'completed';
+          } else {
+            bUpcomingExams++;
+            status = 'in_progress';
+          }
+        } else {
+          bUpcomingExams++;
+          status = 'available';
+        }
+
+        return {
+          id: e.id,
+          title: e.title,
+          duration_minutes: e.duration_minutes,
+          max_marks: e.max_marks,
+          status,
+          total_score: att?.total_score ?? null
+        };
+      });
+
+      return {
+        batch_id: b.id,
+        batch_name: b.name,
+        batch_description: b.description,
+        total_assignments: bAssignments.length,
+        pending_assignments: bPending,
+        submitted_assignments: bSubmitted,
+        evaluated_assignments: bEvaluated,
+        overdue_assignments: bOverdue,
+        upcoming_exams: bUpcomingExams,
+        completed_exams: bCompletedExams,
+        assignments: assignmentsList,
+        exams: examsList
+      };
+    });
+
     return {
       student,
       batches,
@@ -2230,7 +2381,8 @@ export const dbService = {
       upcoming_exams: upcomingEx,
       completed_exams: completedEx,
       recent_submissions: recentSubs,
-      recent_exam_results: recentExams
+      recent_exam_results: recentExams,
+      batch_breakdowns: batchBreakdowns
     };
   },
 

@@ -6,16 +6,21 @@ import { BookOpen, Plus, Calendar, Clock, CheckCircle, FileText, ArrowRight, Tra
 import { ClayCard, ClayButton } from '@/components/ui/ClayComponents';
 import { Assignment } from '@/lib/db/types';
 
+let cachedAssignmentsList: (Assignment & { recipient_batch_names: string[]; submission_count: number })[] | null = null;
+
 export default function AdminAssignmentsPage() {
   const router = useRouter();
-  const [assignments, setAssignments] = useState<(Assignment & { recipient_batch_names: string[]; submission_count: number })[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [assignments, setAssignments] = useState<(Assignment & { recipient_batch_names: string[]; submission_count: number })[]>(cachedAssignmentsList || []);
+  const [loading, setLoading] = useState(!cachedAssignmentsList);
 
   const fetchAssignments = () => {
     fetch('/api/admin/assignments')
       .then(res => res.json())
       .then(data => {
-        setAssignments(data);
+        if (Array.isArray(data)) {
+          setAssignments(data);
+          cachedAssignmentsList = data;
+        }
         setLoading(false);
       })
       .catch(() => setLoading(false));

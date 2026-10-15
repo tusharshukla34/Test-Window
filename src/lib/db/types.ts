@@ -219,3 +219,34 @@ export interface MatrixStudentRow {
     submitted_at?: string;
   }>;
 }
+
+export interface StudentBatchBreakdown {
+  batch_id: string;
+  batch_name: string;
+  batch_description: string | null;
+  total_assignments: number;
+  pending_assignments: number;
+  submitted_assignments: number;
+  evaluated_assignments: number;
+  overdue_assignments: number;
+  upcoming_exams: number;
+  completed_exams: number;
+  assignments: {
+    id: string;
+    title: string;
+    subject: string;
+    deadline: string;
+    status: 'pending' | 'submitted' | 'evaluated' | 'overdue';
+    marks_awarded?: number | null;
+    max_score: number;
+  }[];
+  exams: {
+    id: string;
+    title: string;
+    duration_minutes: number;
+    max_marks: number;
+    status: 'available' | 'in_progress' | 'completed';
+    total_score?: number | null;
+  }[];
+}
+

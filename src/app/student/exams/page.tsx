@@ -14,16 +14,21 @@ import {
 import { ClayCard, ClayButton } from '@/components/ui/ClayComponents';
 import { Exam, ExamAttempt } from '@/lib/db/types';
 
+let cachedStudentExams: (Exam & { attempt?: ExamAttempt | null; is_eligible: boolean })[] | null = null;
+
 export default function StudentExamsPage() {
   const router = useRouter();
-  const [exams, setExams] = useState<(Exam & { attempt?: ExamAttempt | null; is_eligible: boolean })[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [exams, setExams] = useState<(Exam & { attempt?: ExamAttempt | null; is_eligible: boolean })[]>(cachedStudentExams || []);
+  const [loading, setLoading] = useState(!cachedStudentExams);
 
   useEffect(() => {
     fetch('/api/student/exams')
       .then(res => res.json())
       .then(data => {
-        setExams(data);
+        if (Array.isArray(data)) {
+          setExams(data);
+          cachedStudentExams = data;
+        }
         setLoading(false);
       })
       .catch(() => setLoading(false));
