@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -47,6 +47,8 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
   });
   const [notifications, setNotifications] = useState<{ id: string; title: string; message: string; is_read: boolean }[]>([]);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+  const mobileNotifRef = useRef<HTMLDivElement>(null);
 
   // If this is the exam attempt screen, render in distraction-free mode without standard navbar!
   const isExamAttempt = pathname.includes('/attempt');
@@ -72,6 +74,37 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
       })
       .catch(() => {});
   }, []);
+
+  // Close notifications dropdown when clicking outside anywhere in the window or pressing Escape
+  useEffect(() => {
+    if (!showNotifDropdown) return;
+
+    function handleClickOutside(event: MouseEvent | TouchEvent) {
+      const target = event.target as Node;
+      const insideDesktop = notifRef.current && notifRef.current.contains(target);
+      const insideMobile = mobileNotifRef.current && mobileNotifRef.current.contains(target);
+
+      if (!insideDesktop && !insideMobile) {
+        setShowNotifDropdown(false);
+      }
+    }
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setShowNotifDropdown(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showNotifDropdown]);
 
   const handleLogout = async () => {
     cachedStudentUser = null;
@@ -137,16 +170,39 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
         </button>
 
         <div className="flex items-center gap-1 shrink-0">
-          <button
-            onClick={() => setShowNotifDropdown(!showNotifDropdown)}
-            className="p-2 text-slate-600 hover:text-slate-900 rounded-lg relative"
-            title="Notifications"
-          >
-            <Bell size={18} />
-            {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500"></span>
+          <div className="relative" ref={mobileNotifRef}>
+            <button
+              onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+              className="p-2 text-slate-600 hover:text-slate-900 rounded-lg relative cursor-pointer"
+              title="Notifications"
+            >
+              <Bell size={18} />
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500"></span>
+              )}
+            </button>
+
+            {showNotifDropdown && (
+              <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50 animate-in fade-in">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
+                  <h4 className="text-xs font-bold text-slate-800">Notifications</h4>
+                  <span className="text-[10px] text-slate-500">{unreadCount} unread</span>
+                </div>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <p className="text-xs text-slate-400 py-3 text-center">No notifications</p>
+                  ) : (
+                    notifications.slice(0, 5).map(n => (
+                      <div key={n.id} className="text-xs p-2 rounded-lg bg-slate-50 border border-slate-100">
+                        <p className="font-semibold text-slate-800">{n.title}</p>
+                        <p className="text-slate-500 mt-0.5 text-[11px]">{n.message}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             )}
-          </button>
+          </div>
 
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -265,10 +321,12 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="relative">
+            {/* Notification Bell with Outside-Click-to-Close */}
+            <div className="relative" ref={notifRef}>
               <button
                 onClick={() => setShowNotifDropdown(!showNotifDropdown)}
-                className="relative p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition"
+                className="relative p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                title="Notifications"
               >
                 <Bell size={19} />
                 {unreadCount > 0 && (
