@@ -67,13 +67,18 @@ export default function SubmissionsQueuePage() {
         fetch('/api/admin/assignments')
       ]);
 
+      if (resSubs.status === 401 || resSubs.status === 403 || resBatches.status === 401 || resBatches.status === 403) {
+        window.location.href = '/login';
+        return;
+      }
+
       const subsData = await resSubs.json();
       const batchesData = await resBatches.json();
       const asgData = await resAsg.json();
 
-      setSubmissions(subsData);
-      setBatches(batchesData);
-      setAssignments(asgData);
+      setSubmissions(Array.isArray(subsData) ? subsData : []);
+      setBatches(Array.isArray(batchesData) ? batchesData : []);
+      setAssignments(Array.isArray(asgData) ? asgData : []);
     } catch {}
     setLoading(false);
   };

@@ -41,13 +41,30 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   ];
 
   useEffect(() => {
+    fetch('/api/auth/me')
+      .then(res => {
+        if (!res.ok) {
+          router.push('/login');
+          return null;
+        }
+        return res.json();
+      })
+      .then(data => {
+        if (!data || !data.authenticated || data.user?.role !== 'admin') {
+          router.push('/login');
+        }
+      })
+      .catch(() => {
+        router.push('/login');
+      });
+
     fetch('/api/notifications')
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setNotifications(data);
       })
       .catch(() => {});
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (!showNotifDropdown) return;

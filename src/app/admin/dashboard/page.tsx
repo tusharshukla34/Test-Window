@@ -13,7 +13,8 @@ import {
   Plus,
   ArrowUpRight,
   TrendingUp,
-  Layers
+  Layers,
+  RefreshCw
 } from 'lucide-react';
 import { ClayCard, ClayButton } from '@/components/ui/ClayComponents';
 
@@ -54,24 +55,72 @@ export default function AdminDashboardPage() {
   const router = useRouter();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchDashboard = () => {
+    setLoading(true);
+    setError(null);
+    fetch('/api/admin/dashboard')
+      .then(async res => {
+        if (res.status === 401 || res.status === 403) {
+          router.push('/login');
+          return null;
+        }
+        const data = await res.json();
+        if (!res.ok || data?.error) {
+          throw new Error(data?.error || `Failed to fetch dashboard data (HTTP ${res.status})`);
+        }
+        return data;
+      })
+      .then(data => {
+        if (data) {
+          setStats(data);
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching admin dashboard stats:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
 
   useEffect(() => {
-    fetch('/api/admin/dashboard')
-      .then(res => res.json())
-      .then(data => {
-        setStats(data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    fetchDashboard();
   }, []);
 
-  if (loading) {
+  if (loading && !stats) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
+
+  if (error && !stats) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+        <div className="w-16 h-16 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mb-4 border border-rose-100 shadow-sm">
+          <AlertCircle size={32} />
+        </div>
+        <h2 className="text-xl font-black text-slate-800 tracking-tight">Unable to Load Dashboard</h2>
+        <p className="text-sm text-slate-500 mt-1.5 max-w-md">{error}</p>
+        <div className="mt-6 flex items-center gap-3">
+          <ClayButton variant="primary" size="md" onClick={fetchDashboard} className="shadow-md">
+            <RefreshCw size={16} /> Retry Now
+          </ClayButton>
+          <ClayButton variant="outline" size="md" onClick={() => router.push('/login')}>
+            Back to Login
+          </ClayButton>
+        </div>
+      </div>
+    );
+  }
+
+  const batchCompletionRates = Array.isArray(stats?.batch_completion_rates) ? stats.batch_completion_rates : [];
+  const recentSubmissions = Array.isArray(stats?.recent_submissions) ? stats.recent_submissions : [];
+  const recentResults = Array.isArray(stats?.recent_results) ? stats.recent_results : [];
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -198,23 +247,29 @@ export default function AdminDashboardPage() {
             </button>
           </div>
 
-          <div className="space-y-4">
-            {stats?.batch_completion_rates.map((b, idx) => (
-              <div key={idx} className="space-y-1.5">
-                <div className="flex justify-between text-xs font-semibold">
-                  <span className="text-slate-700">{b.batch_name}</span>
-                  <span className="text-indigo-600 font-mono">{b.completion_pct}%</span>
+          {batchCompletionRates.length === 0 ? (
+            <div className="py-8 text-center text-slate-400 text-xs">
+              No batch completion statistics available yet.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {batchCompletionRates.map((b, idx) => (
+                <div key={idx} className="space-y-1.5">
+                  <div className="flex justify-between text-xs font-semibold">
+                    <span className="text-slate-700">{b.batch_name}</span>
+                    <span className="text-indigo-600 font-mono">{b.completion_pct}%</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-indigo-500 to-teal-400 h-2.5 rounded-full transition-all duration-500"
+                      style={{ width: `${b.completion_pct}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-[10px] text-slate-400">{b.student_count} registered students</p>
                 </div>
-                <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                  <div
-                    className="bg-gradient-to-r from-indigo-500 to-teal-400 h-2.5 rounded-full transition-all duration-500"
-                    style={{ width: `${b.completion_pct}%` }}
-                  ></div>
-                </div>
-                <p className="text-[10px] text-slate-400">{b.student_count} registered students</p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </ClayCard>
 
         {/* Recent Homework Submissions Queue */}
@@ -231,13 +286,13 @@ export default function AdminDashboardPage() {
             </button>
           </div>
 
-          {stats?.recent_submissions.length === 0 ? (
+          {recentSubmissions.length === 0 ? (
             <div className="py-8 text-center text-slate-400 text-xs">
               No submissions received yet today.
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {stats?.recent_submissions.map(sub => (
+              {recentSubmissions.map(sub => (
                 <div key={sub.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-slate-900 break-words">{sub.student_name}</p>
@@ -279,13 +334,13 @@ export default function AdminDashboardPage() {
           </button>
         </div>
 
-        {stats?.recent_results.length === 0 ? (
+        {recentResults.length === 0 ? (
           <div className="py-8 text-center text-slate-400 text-xs">
             No completed exam attempts yet.
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {stats?.recent_results.map(res => (
+            {recentResults.map(res => (
               <div key={res.id} className="p-4 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
                 <div>
                   <p className="text-xs font-bold text-slate-900">{res.student_name}</p>

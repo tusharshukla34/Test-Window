@@ -10,6 +10,11 @@ export async function GET() {
     return NextResponse.json(stats);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to fetch dashboard stats';
-    return NextResponse.json({ error: message }, { status: 403 });
+    const status = message.toLowerCase().includes('unauthorized')
+      ? 401
+      : message.toLowerCase().includes('forbidden')
+      ? 403
+      : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

@@ -33,6 +33,10 @@ export default function BatchesPage() {
   const fetchBatches = async () => {
     try {
       const res = await fetch('/api/admin/batches');
+      if (res.status === 401 || res.status === 403) {
+        window.location.href = '/login';
+        return;
+      }
       const data = await res.json();
       if (Array.isArray(data)) {
         cachedBatchesList = data;

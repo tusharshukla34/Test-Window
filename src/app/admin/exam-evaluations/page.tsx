@@ -81,13 +81,17 @@ export default function AdminExamEvaluationsPage() {
       if (searchQuery) params.set('search', searchQuery);
 
       const res = await fetch(`/api/admin/exams/evaluations?${params.toString()}`);
+      if (res.status === 401 || res.status === 403) {
+        router.push('/login');
+        return;
+      }
       const data = await res.json();
 
-      if (data) {
-        setBatches(data.batches || []);
-        setExams(data.exams || []);
+      if (data && !data.error) {
+        setBatches(Array.isArray(data.batches) ? data.batches : []);
+        setExams(Array.isArray(data.exams) ? data.exams : []);
         setMetrics(data.metrics || {});
-        setAttempts(data.attempts || []);
+        setAttempts(Array.isArray(data.attempts) ? data.attempts : []);
       }
     } catch (err) {
       console.error('Failed to load evaluations data:', err);

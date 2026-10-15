@@ -50,6 +50,10 @@ export default function StudentsPage() {
         fetch('/api/admin/students'),
         fetch('/api/admin/batches')
       ]);
+      if (resStu.status === 401 || resStu.status === 403 || resBatches.status === 401 || resBatches.status === 403) {
+        window.location.href = '/login';
+        return;
+      }
       const stuData = await resStu.json();
       const batchData = await resBatches.json();
       if (Array.isArray(stuData)) {

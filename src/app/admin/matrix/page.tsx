@@ -36,6 +36,11 @@ export default function AssignmentMatrixPage() {
         fetch('/api/admin/batches')
       ]);
 
+      if (resMatrix.status === 401 || resMatrix.status === 403 || resBatches.status === 401 || resBatches.status === 403) {
+        window.location.href = '/login';
+        return;
+      }
+
       if (resMatrix.ok) {
         const mData = await resMatrix.json();
         if (mData && !mData.error && mData.summary && Array.isArray(mData.assignments)) {

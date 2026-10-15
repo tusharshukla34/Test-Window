@@ -2140,62 +2140,62 @@ export const dbService = {
     recent_results: (ExamAttempt & { student_name: string; exam_title: string })[];
     batch_completion_rates: { batch_name: string; completion_pct: number; student_count: number }[];
   } {
-    const totalStudents = (db.prepare(`SELECT count(*) as count FROM profiles WHERE role = 'student' AND status = 'active'`).get() as { count: number }).count;
-    const activeBatches = (db.prepare(`SELECT count(*) as count FROM batches WHERE status = 'active'`).get() as { count: number }).count;
+    const totalStudents = (db.prepare(`SELECT count(*) as count FROM profiles WHERE role = 'student' AND status = 'active'`).get() as { count: number } | undefined)?.count || 0;
+    const activeBatches = (db.prepare(`SELECT count(*) as count FROM batches WHERE status = 'active'`).get() as { count: number } | undefined)?.count || 0;
 
-    const awaitingEvaluations = (db.prepare(`SELECT count(*) as count FROM assignment_submissions WHERE status = 'submitted'`).get() as { count: number }).count;
-    const completedAssignments = (db.prepare(`SELECT count(*) as count FROM assignment_submissions WHERE status = 'evaluated'`).get() as { count: number }).count;
+    const awaitingEvaluations = (db.prepare(`SELECT count(*) as count FROM assignment_submissions WHERE status = 'submitted'`).get() as { count: number } | undefined)?.count || 0;
+    const completedAssignments = (db.prepare(`SELECT count(*) as count FROM assignment_submissions WHERE status = 'evaluated'`).get() as { count: number } | undefined)?.count || 0;
 
     const overdueAssignments = (db.prepare(`
       SELECT count(*) as count FROM assignments a
       WHERE a.status = 'published' AND a.deadline < datetime('now')
-    `).get() as { count: number }).count;
+    `).get() as { count: number } | undefined)?.count || 0;
 
     const pendingAssignments = (db.prepare(`
       SELECT count(*) as count FROM assignments a
       WHERE a.status = 'published' AND a.deadline >= datetime('now')
-    `).get() as { count: number }).count;
+    `).get() as { count: number } | undefined)?.count || 0;
 
-    const upcomingExams = (db.prepare(`SELECT count(*) as count FROM exams WHERE status = 'published'`).get() as { count: number }).count;
-    const examsInProgress = (db.prepare(`SELECT count(*) as count FROM exam_attempts WHERE status = 'in_progress'`).get() as { count: number }).count;
+    const upcomingExams = (db.prepare(`SELECT count(*) as count FROM exams WHERE status = 'published'`).get() as { count: number } | undefined)?.count || 0;
+    const examsInProgress = (db.prepare(`SELECT count(*) as count FROM exam_attempts WHERE status = 'in_progress'`).get() as { count: number } | undefined)?.count || 0;
 
-    const recentSubmissions = db.prepare(`
+    const recentSubmissions = ((db.prepare(`
       SELECT sub.*, p.name as student_name, a.title as assignment_title, coalesce(b.name, 'Default') as batch_name
       FROM assignment_submissions sub
       JOIN profiles p ON sub.student_id = p.id
       JOIN assignments a ON sub.assignment_id = a.id
       LEFT JOIN batches b ON sub.batch_id = b.id
       ORDER BY sub.submitted_at DESC LIMIT 5
-    `).all() as (AssignmentSubmission & { student_name: string; assignment_title: string; batch_name: string })[];
+    `).all() as (AssignmentSubmission & { student_name: string; assignment_title: string; batch_name: string })[]) || []);
 
-    const recentResults = db.prepare(`
+    const recentResults = ((db.prepare(`
       SELECT att.*, p.name as student_name, e.title as exam_title
       FROM exam_attempts att
       JOIN profiles p ON att.student_id = p.id
       JOIN exams e ON att.exam_id = e.id
       WHERE att.status = 'completed'
       ORDER BY att.submitted_at DESC LIMIT 5
-    `).all() as (ExamAttempt & { student_name: string; exam_title: string })[];
+    `).all() as (ExamAttempt & { student_name: string; exam_title: string })[]) || []);
 
-    const batches = this.getAllBatches();
+    const batches = this.getAllBatches() || [];
     const batchCompletionRates = batches.map(b => {
       const totalRecipients = (db.prepare(`
         SELECT count(*) as count FROM assignment_recipients ar
         JOIN batch_memberships bm ON ar.batch_id = bm.batch_id
         WHERE ar.batch_id = ?
-      `).get(b.id) as { count: number }).count;
+      `).get(b.id) as { count: number } | undefined)?.count || 0;
 
       const completedCount = (db.prepare(`
         SELECT count(*) as count FROM assignment_submissions
         WHERE batch_id = ? AND status = 'evaluated'
-      `).get(b.id) as { count: number }).count;
+      `).get(b.id) as { count: number } | undefined)?.count || 0;
 
       const completionPct = totalRecipients > 0 ? Math.round((completedCount / totalRecipients) * 100) : 75;
 
       return {
         batch_name: b.name,
         completion_pct: completionPct,
-        student_count: b.student_count
+        student_count: b.student_count || 0
       };
     });
 

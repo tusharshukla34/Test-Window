@@ -72,6 +72,11 @@ export default function AdminExamsPage() {
         fetch('/api/admin/question-bank')
       ]);
 
+      if (resExams.status === 401 || resExams.status === 403 || resBatches.status === 401 || resBatches.status === 403) {
+        router.push('/login');
+        return;
+      }
+
       const examsData = await resExams.json();
       const batchesData = await resBatches.json();
       const questionsData = await resQuestions.json();

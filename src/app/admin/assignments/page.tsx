@@ -15,7 +15,13 @@ export default function AdminAssignmentsPage() {
 
   const fetchAssignments = () => {
     fetch('/api/admin/assignments')
-      .then(res => res.json())
+      .then(res => {
+        if (res.status === 401 || res.status === 403) {
+          router.push('/login');
+          return null;
+        }
+        return res.json();
+      })
       .then(data => {
         if (Array.isArray(data)) {
           setAssignments(data);

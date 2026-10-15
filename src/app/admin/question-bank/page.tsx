@@ -29,8 +29,14 @@ export default function QuestionBankPage() {
   const fetchQuestions = async () => {
     try {
       const res = await fetch('/api/admin/question-bank');
+      if (res.status === 401 || res.status === 403) {
+        window.location.href = '/login';
+        return;
+      }
       const data = await res.json();
-      setQuestions(data);
+      if (Array.isArray(data)) {
+        setQuestions(data);
+      }
     } catch {}
     setLoading(false);
   };
