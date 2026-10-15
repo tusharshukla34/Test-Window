@@ -913,6 +913,24 @@ export const dbService = {
     return this.getUserById(id);
   },
 
+  updateStudentSelfProfile(id: string, data: { name?: string; avatar_url?: string | null }): UserProfile | null {
+    const existing = this.getUserById(id);
+    if (!existing || existing.role !== 'student') return null;
+
+    const newName = data.name !== undefined ? data.name.trim() : existing.name;
+    const newAvatar = data.avatar_url !== undefined ? data.avatar_url : (existing.avatar_url || null);
+
+    db.prepare(`
+      UPDATE profiles
+      SET name = ?,
+          avatar_url = ?,
+          updated_at = datetime('now')
+      WHERE id = ?
+    `).run(newName || existing.name, newAvatar, id);
+
+    return this.getUserById(id);
+  },
+
   resetPassword(userId: string, newHash: string): boolean {
     const res = db.prepare('UPDATE profiles SET password_hash = ?, updated_at = datetime("now") WHERE id = ?').run(newHash, userId);
     return res.changes > 0;

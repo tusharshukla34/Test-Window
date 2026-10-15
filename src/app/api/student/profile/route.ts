@@ -1,0 +1,69 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { requireStudent, signToken, COOKIE_NAME } from '@/lib/auth';
+import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
+import { cookies } from 'next/headers';
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const session = await requireStudent();
+    await ensureCloudSyncReady();
+
+    const body = await req.json();
+    const { name, avatar_url } = body;
+
+    // Strict validation: student can ONLY update name and avatar_url
+    if (name !== undefined) {
+      if (typeof name !== 'string' || name.trim().length < 2) {
+        return NextResponse.json({ error: 'Name must be at least 2 characters long' }, { status: 400 });
+      }
+      if (name.trim().length > 60) {
+        return NextResponse.json({ error: 'Name cannot exceed 60 characters' }, { status: 400 });
+      }
+    }
+
+    if (avatar_url !== undefined && avatar_url !== null && typeof avatar_url !== 'string') {
+      return NextResponse.json({ error: 'Invalid avatar URL' }, { status: 400 });
+    }
+
+    const updatedUser = dbService.updateStudentSelfProfile(session.userId, {
+      name: name !== undefined ? name.trim() : undefined,
+      avatar_url: avatar_url !== undefined ? avatar_url : undefined
+    });
+
+    if (!updatedUser) {
+      return NextResponse.json({ error: 'Student profile not found' }, { status: 404 });
+    }
+
+    // Refresh the session JWT with the updated name
+    const newToken = await signToken({
+      ...session,
+      name: updatedUser.name
+    });
+
+    const cookieStore = await cookies();
+    cookieStore.set(COOKIE_NAME, newToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/'
+    });
+
+    // Trigger non-blocking cloud sync
+    syncDatabaseToCloud();
+
+    return NextResponse.json({
+      success: true,
+      user: {
+        id: updatedUser.id,
+        student_id: updatedUser.student_id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        avatar_url: updatedUser.avatar_url
+      }
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to update student profile';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

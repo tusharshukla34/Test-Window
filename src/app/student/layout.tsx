@@ -14,12 +14,14 @@ import {
   X,
   Layers
 } from 'lucide-react';
+import StudentProfileModal from '@/components/student/StudentProfileModal';
 
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [user, setUser] = useState<{ name: string; student_id: string; email: string } | null>(null);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [user, setUser] = useState<{ id?: string; name: string; student_id: string; email: string; avatar_url?: string | null } | null>(null);
   const [notifications, setNotifications] = useState<{ id: string; title: string; message: string; is_read: boolean }[]>([]);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
 
@@ -68,15 +70,27 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
     <div className="min-h-screen bg-[#f8fafc] flex flex-col md:flex-row">
       {/* Mobile Header */}
       <div className="md:hidden bg-white/95 backdrop-blur-md px-3.5 py-2.5 border-b border-slate-200 flex items-center justify-between shadow-xs sticky top-0 z-30">
-        <div className="flex items-center gap-2 overflow-hidden">
-          <div className="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
-            <GraduationCap size={18} />
-          </div>
+        <button
+          onClick={() => setProfileModalOpen(true)}
+          className="flex items-center gap-2 overflow-hidden text-left hover:opacity-80 transition cursor-pointer"
+          title="Click to edit name or upload photo"
+        >
+          {user?.avatar_url ? (
+            <img
+              src={user.avatar_url}
+              alt={user.name}
+              className="w-8 h-8 rounded-lg object-cover border border-teal-200 shrink-0 shadow-xs"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
+              <GraduationCap size={18} />
+            </div>
+          )}
           <div className="truncate min-w-0">
             <h1 className="font-bold text-slate-900 text-xs sm:text-sm leading-tight truncate">{user?.name || 'Student Portal'}</h1>
             <span className="text-[10px] text-teal-600 font-mono font-semibold">{user?.student_id || 'Student'}</span>
           </div>
-        </div>
+        </button>
 
         <div className="flex items-center gap-1 shrink-0">
           <button
@@ -153,10 +167,27 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 
         {/* User Card */}
         <div className="pt-4 border-t border-slate-100">
-          <div className="bg-slate-50 rounded-xl p-3 mb-3 border border-slate-100">
-            <p className="text-xs font-bold text-slate-800 truncate">{user?.name || 'Student'}</p>
-            <p className="text-[11px] font-mono text-teal-600 font-semibold mt-0.5">{user?.student_id || 'ID Pending'}</p>
-          </div>
+          <button
+            onClick={() => setProfileModalOpen(true)}
+            className="w-full text-left bg-slate-50 hover:bg-slate-100/90 rounded-xl p-3 mb-3 border border-slate-100 transition group flex items-center gap-2.5 cursor-pointer"
+            title="Click to edit name or upload photo"
+          >
+            {user?.avatar_url ? (
+              <img
+                src={user.avatar_url}
+                alt={user.name}
+                className="w-8 h-8 rounded-full object-cover border border-teal-200 shrink-0 shadow-xs"
+              />
+            ) : (
+              <span className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 font-bold flex items-center justify-center text-xs shrink-0 group-hover:bg-teal-200 transition">
+                {user?.name ? user.name.slice(0, 2).toUpperCase() : 'ST'}
+              </span>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-slate-800 truncate group-hover:text-teal-700 transition">{user?.name || 'Student'}</p>
+              <p className="text-[11px] font-mono text-teal-600 font-semibold mt-0.5">{user?.student_id || 'ID Pending'}</p>
+            </div>
+          </button>
 
           <button
             onClick={handleLogout}
@@ -212,12 +243,24 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 
             <div className="h-6 w-[1px] bg-slate-200"></div>
 
-            <div className="flex items-center gap-2 text-xs font-medium text-slate-700">
-              <span className="w-7 h-7 rounded-full bg-teal-100 text-teal-700 font-bold flex items-center justify-center">
-                {user?.name ? user.name.slice(0, 2).toUpperCase() : 'ST'}
-              </span>
-              <span className="hidden sm:inline">{user?.name || 'Student'}</span>
-            </div>
+            <button
+              onClick={() => setProfileModalOpen(true)}
+              className="flex items-center gap-2 text-xs font-medium text-slate-700 hover:text-slate-900 p-1 pr-2.5 rounded-xl hover:bg-slate-100 transition cursor-pointer group"
+              title="Click to edit name or upload photo"
+            >
+              {user?.avatar_url ? (
+                <img
+                  src={user.avatar_url}
+                  alt={user.name}
+                  className="w-7 h-7 rounded-full object-cover border border-teal-200 shadow-xs"
+                />
+              ) : (
+                <span className="w-7 h-7 rounded-full bg-teal-100 text-teal-700 font-bold flex items-center justify-center text-[11px] group-hover:bg-teal-200 transition shadow-xs">
+                  {user?.name ? user.name.slice(0, 2).toUpperCase() : 'ST'}
+                </span>
+              )}
+              <span className="hidden sm:inline font-bold group-hover:text-teal-700 transition">{user?.name || 'Student'}</span>
+            </button>
           </div>
         </header>
 
@@ -225,6 +268,16 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
           {children}
         </main>
       </div>
+
+      {/* Student Profile & Photo Modal */}
+      <StudentProfileModal
+        isOpen={profileModalOpen}
+        onClose={() => setProfileModalOpen(false)}
+        user={user}
+        onProfileUpdated={(updated) => {
+          setUser(prev => prev ? { ...prev, name: updated.name, avatar_url: updated.avatar_url } : null);
+        }}
+      />
     </div>
   );
 }

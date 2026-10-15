@@ -124,19 +124,19 @@ export default function StudentDashboardPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 relative z-10 self-start sm:self-auto shrink-0 flex-wrap">
+        <div className="flex items-center gap-3 relative z-10 self-start sm:self-auto shrink-0">
           <button
             onClick={() => router.push('/student/batches')}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs sm:text-sm font-bold transition-all backdrop-blur-xs active:scale-95 shadow-xs"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-teal-50 text-slate-900 text-xs sm:text-sm font-bold transition-all active:scale-95 shadow-md shadow-teal-950/20 border border-white/80 whitespace-nowrap cursor-pointer"
           >
-            <Layers size={16} className="text-teal-300" />
+            <Layers size={16} className="text-teal-600" />
             <span>My Batches</span>
           </button>
           <button
             onClick={() => router.push('/student/exams')}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-teal-50 text-teal-950 text-xs sm:text-sm font-black transition-all active:scale-95 shadow-md shadow-teal-950/20"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-teal-50 text-slate-900 text-xs sm:text-sm font-bold transition-all active:scale-95 shadow-md shadow-teal-950/20 border border-white/80 whitespace-nowrap cursor-pointer"
           >
-            <FileCheck2 size={16} className="text-teal-700" />
+            <FileCheck2 size={16} className="text-teal-600" />
             <span>Online Examinations</span>
           </button>
         </div>
