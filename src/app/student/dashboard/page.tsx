@@ -124,21 +124,21 @@ export default function StudentDashboardPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 relative z-10 self-start sm:self-auto shrink-0 flex-wrap">
+        <div className="flex items-center gap-2.5 relative z-10 self-start sm:self-auto shrink-0 flex-wrap">
           <button
             onClick={() => router.push('/student/batches')}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs sm:text-sm font-bold transition shadow-xs"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs sm:text-sm font-bold transition-all backdrop-blur-xs active:scale-95 shadow-xs"
           >
-            <Layers size={16} /> My Batches
+            <Layers size={16} className="text-teal-300" />
+            <span>My Batches</span>
           </button>
-          <ClayButton
-            variant="teal"
-            size="md"
+          <button
             onClick={() => router.push('/student/exams')}
-            className="shadow-lg bg-cyan-400 text-slate-900 hover:bg-cyan-300 font-bold text-xs sm:text-sm"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-teal-50 text-teal-950 text-xs sm:text-sm font-black transition-all active:scale-95 shadow-md shadow-teal-950/20"
           >
-            <FileCheck2 size={16} /> Online Examinations
-          </ClayButton>
+            <FileCheck2 size={16} className="text-teal-700" />
+            <span>Online Examinations</span>
+          </button>
         </div>
       </div>
 

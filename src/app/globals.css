@@ -92,8 +92,8 @@ body {
 .clay-btn {
   border-radius: 0.875rem;
   box-shadow: 
-    4px 4px 10px 0px rgba(160, 175, 200, 0.25),
-    -4px -4px 10px 0px rgba(255, 255, 255, 0.9);
+    0 2px 4px -1px rgba(0, 0, 0, 0.08),
+    0 1px 2px -1px rgba(0, 0, 0, 0.06);
   transition: all 0.15s ease-in-out;
   cursor: pointer;
 }
@@ -101,15 +101,14 @@ body {
 .clay-btn:hover {
   transform: translateY(-1px);
   box-shadow: 
-    5px 5px 12px 0px rgba(160, 175, 200, 0.32),
-    -5px -5px 12px 0px rgba(255, 255, 255, 0.95);
+    0 4px 8px -2px rgba(0, 0, 0, 0.12),
+    0 2px 4px -2px rgba(0, 0, 0, 0.08);
 }
 
 .clay-btn:active {
   transform: translateY(1px);
   box-shadow: 
-    inset 2px 2px 5px rgba(0, 0, 0, 0.12),
-    inset -2px -2px 5px rgba(255, 255, 255, 0.7);
+    inset 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 .clay-input {
