@@ -16,6 +16,7 @@ import {
   MatrixStudentRow,
   ExamQuestionClient,
   StudentBatchBreakdown,
+  CalendarEvent,
 } from './types';
 
 // Ensure data directory exists (supports writable /tmp on serverless environments like Vercel)
@@ -2890,5 +2891,197 @@ export const dbService = {
         }
       };
     });
+  },
+
+  // Trainer Activity Calendar Events
+  getAdminCalendarEvents(options?: { batch_id?: string }): {
+    events: CalendarEvent[];
+    batches: (Batch & { student_count: number })[];
+  } {
+    const batches = this.getAllBatches() || [];
+    const filterBatchId = options?.batch_id && options.batch_id !== 'all' ? options.batch_id : null;
+
+    const events: CalendarEvent[] = [];
+
+    const parseDateTime = (raw: string | null | undefined) => {
+      if (!raw) return { date: '', time: '' };
+      try {
+        const d = new Date(raw);
+        if (isNaN(d.getTime())) {
+          const parts = String(raw).split(/[T ]/);
+          return { date: parts[0] || '', time: parts[1] ? parts[1].slice(0, 5) : '' };
+        }
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const date = `${year}-${month}-${day}`;
+        const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        return { date, time };
+      } catch {
+        const parts = String(raw).split(/[T ]/);
+        return { date: parts[0] || '', time: '' };
+      }
+    };
+
+    // 1. Batches Created
+    for (const b of batches) {
+      if (filterBatchId && b.id !== filterBatchId) continue;
+      const { date, time } = parseDateTime(b.created_at);
+      if (date) {
+        events.push({
+          id: `batch-${b.id}`,
+          type: 'batch_created',
+          title: `Created Batch: ${b.name}`,
+          subtitle: `${b.student_count || 0} enrolled students`,
+          date,
+          time,
+          timestamp: b.created_at,
+          batch_ids: [b.id],
+          batch_names: [b.name],
+          link_url: '/admin/batches',
+          badge_color: 'purple',
+          metadata: {
+            batch_id: b.id,
+            student_count: b.student_count || 0,
+            status: b.status
+          }
+        });
+      }
+    }
+
+    // 2. Homework Tasks Assigned & Deadlines
+    const assignments = (db.prepare('SELECT * FROM assignments ORDER BY created_at DESC').all() || []) as Assignment[];
+    const getAsgBatchesStmt = db.prepare(`
+      SELECT b.id, b.name FROM batches b
+      JOIN assignment_recipients ar ON b.id = ar.batch_id
+      WHERE ar.assignment_id = ?
+    `);
+
+    for (const a of assignments) {
+      const assignedBatches = (getAsgBatchesStmt.all(a.id) || []) as { id: string; name: string }[];
+      const bIds = assignedBatches.map(b => b.id);
+      const bNames = assignedBatches.map(b => b.name);
+
+      if (filterBatchId && !bIds.includes(filterBatchId)) continue;
+
+      const { date: createDate, time: createTime } = parseDateTime(a.created_at);
+      if (createDate) {
+        events.push({
+          id: `asg-assign-${a.id}`,
+          type: 'assignment_assigned',
+          title: `Assigned Task: ${a.title}`,
+          subtitle: `Target: ${bNames.length > 0 ? bNames.join(', ') : 'All Batches'} • Max ${a.max_score} marks`,
+          date: createDate,
+          time: createTime,
+          timestamp: a.created_at,
+          batch_ids: bIds,
+          batch_names: bNames,
+          link_url: '/admin/assignments',
+          badge_color: 'indigo',
+          metadata: {
+            assignment_id: a.id,
+            subject: a.subject,
+            max_score: a.max_score,
+            status: a.status
+          }
+        });
+      }
+
+      if (a.deadline) {
+        const { date: dueDates, time: dueTime } = parseDateTime(a.deadline);
+        if (dueDates) {
+          events.push({
+            id: `asg-due-${a.id}`,
+            type: 'assignment_deadline',
+            title: `Task Due: ${a.title}`,
+            subtitle: `Submission deadline for ${bNames.length > 0 ? bNames.join(', ') : 'All Batches'}`,
+            date: dueDates,
+            time: dueTime,
+            timestamp: a.deadline,
+            batch_ids: bIds,
+            batch_names: bNames,
+            link_url: `/admin/submissions?assignment_id=${a.id}`,
+            badge_color: 'rose',
+            metadata: {
+              assignment_id: a.id,
+              subject: a.subject,
+              max_score: a.max_score
+            }
+          });
+        }
+      }
+    }
+
+    // 3. Exams Scheduled & Conducted
+    const exams = (db.prepare('SELECT * FROM exams ORDER BY created_at DESC').all() || []) as Exam[];
+    const getExamBatchesStmt = db.prepare(`
+      SELECT b.id, b.name FROM batches b
+      JOIN exam_batches eb ON b.id = eb.batch_id
+      WHERE eb.exam_id = ?
+    `);
+
+    for (const e of exams) {
+      const examBatches = (getExamBatchesStmt.all(e.id) || []) as { id: string; name: string }[];
+      const bIds = examBatches.map(b => b.id);
+      const bNames = examBatches.map(b => b.name);
+
+      if (filterBatchId && !bIds.includes(filterBatchId)) continue;
+
+      const { date: createDate, time: createTime } = parseDateTime(e.created_at);
+      if (createDate) {
+        events.push({
+          id: `exam-schedule-${e.id}`,
+          type: 'exam_scheduled',
+          title: `Scheduled Exam: ${e.title}`,
+          subtitle: `Batches: ${bNames.length > 0 ? bNames.join(', ') : 'All Batches'} • ${e.duration_minutes}m • ${e.total_questions} Questions`,
+          date: createDate,
+          time: createTime,
+          timestamp: e.created_at,
+          batch_ids: bIds,
+          batch_names: bNames,
+          link_url: '/admin/exams',
+          badge_color: 'amber',
+          metadata: {
+            exam_id: e.id,
+            duration_minutes: e.duration_minutes,
+            total_questions: e.total_questions,
+            max_marks: e.max_marks,
+            status: e.status
+          }
+        });
+      }
+
+      if (e.start_window) {
+        const { date: winDate, time: winTime } = parseDateTime(e.start_window);
+        if (winDate) {
+          events.push({
+            id: `exam-window-${e.id}`,
+            type: 'exam_window',
+            title: `Exam Window: ${e.title}`,
+            subtitle: `Exam opens for ${bNames.length > 0 ? bNames.join(', ') : 'Target Batches'}`,
+            date: winDate,
+            time: winTime,
+            timestamp: e.start_window,
+            batch_ids: bIds,
+            batch_names: bNames,
+            link_url: `/admin/exam-evaluations?exam_id=${e.id}`,
+            badge_color: 'teal',
+            metadata: {
+              exam_id: e.id,
+              duration_minutes: e.duration_minutes,
+              max_marks: e.max_marks
+            }
+          });
+        }
+      }
+    }
+
+    // Sort all events by timestamp descending
+    events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    return {
+      events,
+      batches
+    };
   }
 };

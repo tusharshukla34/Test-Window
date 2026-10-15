@@ -13,6 +13,7 @@ import {
   HelpCircle,
   FileSpreadsheet,
   ClipboardCheck,
+  Calendar,
   Bell,
   LogOut,
   Menu,
@@ -30,6 +31,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const navItems = [
     { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
+    { label: 'Calendar', href: '/admin/calendar', icon: Calendar },
     { label: 'Batches', href: '/admin/batches', icon: Users },
     { label: 'Students', href: '/admin/students', icon: GraduationCap },
     { label: 'Assignments', href: '/admin/assignments', icon: BookOpen },

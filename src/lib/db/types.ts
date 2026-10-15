@@ -250,3 +250,24 @@ export interface StudentBatchBreakdown {
   }[];
 }
 
+export type CalendarEventType =
+  | 'batch_created'
+  | 'assignment_assigned'
+  | 'assignment_deadline'
+  | 'exam_scheduled'
+  | 'exam_window';
+
+export interface CalendarEvent {
+  id: string;
+  type: CalendarEventType;
+  title: string;
+  subtitle?: string;
+  date: string; // "YYYY-MM-DD"
+  time?: string; // "10:30 AM"
+  timestamp: string; // ISO string
+  batch_ids: string[];
+  batch_names: string[];
+  link_url?: string;
+  badge_color?: 'indigo' | 'purple' | 'amber' | 'emerald' | 'rose' | 'teal';
+  metadata?: Record<string, any>;
+}
