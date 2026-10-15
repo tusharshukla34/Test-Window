@@ -265,16 +265,23 @@ describe('Complete 12-Step Trainer & Student End-to-End Lifecycle Workflow', () 
 
   // Step 12: Student from another batch is denied access
   it('Step 12: Student from an unrelated batch is denied access to this private exam', async () => {
-    // Rahul Verma is NOT enrolled in 'Advanced 11:00 AM Batch'
-    const rahul = dbService.getUserByStudentId('STU-2026-001')!;
-    const rahulEligibility = dbService.getStudentExamEligibility(createdExamId, rahul.id);
+    const unrelatedStudent = dbService.createStudent({
+      name: 'Unrelated Student',
+      email: 'unrelated.student@example.com',
+      student_id: 'STU-UNRELATED-001',
+      password_hash: '$2a$10$xyzFakeHash12345678901234567890'
+    });
 
-    expect(rahulEligibility.is_eligible).toBe(false);
-    expect(rahulEligibility.reason).toContain('not enrolled');
+    const eligibility = dbService.getStudentExamEligibility(createdExamId, unrelatedStudent.id);
+
+    expect(eligibility.is_eligible).toBe(false);
+    expect(eligibility.reason).toContain('not enrolled');
 
     // Attempt to start exam by unauthorized student must throw
     expect(() => {
-      dbService.startOrResumeExamAttempt(createdExamId, rahul.id);
+      dbService.startOrResumeExamAttempt(createdExamId, unrelatedStudent.id);
     }).toThrow(/not authorized|not enrolled/i);
+
+    dbService.deleteStudent(unrelatedStudent.id);
   });
 });
