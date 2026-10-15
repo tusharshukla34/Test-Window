@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { requireStudent } from '@/lib/auth';
-import { dbService } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady } from '@/lib/db/database';
 
 export async function GET() {
   try {
     const session = await requireStudent();
+    await ensureCloudSyncReady();
     const stats = dbService.getStudentDashboardStats(session.userId);
     return NextResponse.json(stats);
   } catch (err: unknown) {

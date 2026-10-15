@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requireStudent } from '@/lib/auth';
-import { dbService } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 
 export async function POST(
   req: NextRequest,
@@ -17,11 +17,23 @@ export async function POST(
       return NextResponse.json({ error: 'attempt_id and question_id are required' }, { status: 400 });
     }
 
+    await ensureCloudSyncReady();
+
+    if (!dbService.getExamAttempt(attempt_id)) {
+      await ensureCloudSyncReady(true);
+    }
+
     const result = dbService.autosaveExamResponse(attempt_id, session.userId, question_id, {
       selected_option_id,
       is_marked_for_review,
       is_visited,
       time_spent_seconds
+    });
+
+    after(async () => {
+      try {
+        await syncDatabaseToCloud();
+      } catch {}
     });
 
     return NextResponse.json({

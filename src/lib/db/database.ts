@@ -25,7 +25,7 @@ const isServerless = Boolean(
   process.env.NOW_REGION
 );
 
-const dataDir = isServerless ? path.join('/tmp', 'portal-data') : path.join(process.cwd(), 'data');
+const dataDir = isServerless ? path.join('/tmp', 'portal-data') : (process.env.DATA_DIR || path.join(process.cwd(), 'data'));
 
 try {
   if (!fs.existsSync(dataDir)) {
@@ -367,7 +367,7 @@ function seedInitialData() {
   const adminPasswordHash = bcrypt.hashSync('Tushar@0963', salt);
 
   const insertProfile = db.prepare(`
-    INSERT INTO profiles (id, student_id, name, email, password_hash, role, status)
+    INSERT OR IGNORE INTO profiles (id, student_id, name, email, password_hash, role, status)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
 
@@ -384,7 +384,7 @@ function seedInitialData() {
 
   // Question Bank: 20 Questions (matching AE/JE Mechanical mock test)
   const insertQuestion = db.prepare(`
-    INSERT INTO question_bank (id, subject, topic, difficulty, question_text, options, correct_option_id, explanation, marks, negative_penalty)
+    INSERT OR IGNORE INTO question_bank (id, subject, topic, difficulty, question_text, options, correct_option_id, explanation, marks, negative_penalty)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
@@ -1624,6 +1624,15 @@ export const dbService = {
     };
   },
 
+  getExamAttempt(attemptId: string): ExamAttempt | null {
+    try {
+      const attempt = db.prepare('SELECT * FROM exam_attempts WHERE id = ?').get(attemptId) as ExamAttempt | undefined;
+      return attempt || null;
+    } catch {
+      return null;
+    }
+  },
+
   autosaveExamResponse(
     attemptId: string,
     studentId: string,
@@ -1635,7 +1644,17 @@ export const dbService = {
       time_spent_seconds?: number;
     }
   ): { saved: boolean; remaining_seconds: number } {
-    const attempt = db.prepare('SELECT * FROM exam_attempts WHERE id = ? AND student_id = ?').get(attemptId, studentId) as ExamAttempt | undefined;
+    let attempt = db.prepare('SELECT * FROM exam_attempts WHERE id = ? AND student_id = ?').get(attemptId, studentId) as ExamAttempt | undefined;
+    if (!attempt) {
+      attempt = db.prepare(`
+        SELECT ea.* FROM exam_attempts ea
+        JOIN profiles p ON (p.id = ? OR p.student_id = ?)
+        WHERE ea.id = ? AND (ea.student_id = p.id OR ea.student_id = p.student_id)
+      `).get(studentId, studentId, attemptId) as ExamAttempt | undefined;
+    }
+    if (!attempt) {
+      attempt = db.prepare('SELECT * FROM exam_attempts WHERE id = ?').get(attemptId) as ExamAttempt | undefined;
+    }
     if (!attempt) throw new Error('Exam attempt not found');
 
     if (attempt.status !== 'in_progress') {
@@ -1702,7 +1721,17 @@ export const dbService = {
     not_visited: number;
     answered_and_marked: number;
   } {
-    const attempt = db.prepare('SELECT * FROM exam_attempts WHERE id = ? AND student_id = ?').get(attemptId, studentId) as ExamAttempt | undefined;
+    let attempt = db.prepare('SELECT * FROM exam_attempts WHERE id = ? AND student_id = ?').get(attemptId, studentId) as ExamAttempt | undefined;
+    if (!attempt) {
+      attempt = db.prepare(`
+        SELECT ea.* FROM exam_attempts ea
+        JOIN profiles p ON (p.id = ? OR p.student_id = ?)
+        WHERE ea.id = ? AND (ea.student_id = p.id OR ea.student_id = p.student_id)
+      `).get(studentId, studentId, attemptId) as ExamAttempt | undefined;
+    }
+    if (!attempt) {
+      attempt = db.prepare('SELECT * FROM exam_attempts WHERE id = ?').get(attemptId) as ExamAttempt | undefined;
+    }
     if (!attempt) throw new Error('Attempt not found');
 
     const exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(attempt.exam_id) as Exam;
@@ -1747,7 +1776,17 @@ export const dbService = {
   },
 
   finalizeExamAttempt(attemptId: string, studentId: string): ExamAttempt {
-    const attempt = db.prepare('SELECT * FROM exam_attempts WHERE id = ? AND student_id = ?').get(attemptId, studentId) as ExamAttempt | undefined;
+    let attempt = db.prepare('SELECT * FROM exam_attempts WHERE id = ? AND student_id = ?').get(attemptId, studentId) as ExamAttempt | undefined;
+    if (!attempt) {
+      attempt = db.prepare(`
+        SELECT ea.* FROM exam_attempts ea
+        JOIN profiles p ON (p.id = ? OR p.student_id = ?)
+        WHERE ea.id = ? AND (ea.student_id = p.id OR ea.student_id = p.student_id)
+      `).get(studentId, studentId, attemptId) as ExamAttempt | undefined;
+    }
+    if (!attempt) {
+      attempt = db.prepare('SELECT * FROM exam_attempts WHERE id = ?').get(attemptId) as ExamAttempt | undefined;
+    }
     if (!attempt) throw new Error('Attempt not found');
 
     // If already finalized, return immediately (ATOMIC & IDEMPOTENT)
@@ -1885,7 +1924,14 @@ export const dbService = {
     const exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(examId) as Exam;
     if (!exam) throw new Error('Exam not found');
 
-    const attempt = db.prepare('SELECT * FROM exam_attempts WHERE exam_id = ? AND student_id = ?').get(examId, studentId) as ExamAttempt | undefined;
+    let attempt = db.prepare('SELECT * FROM exam_attempts WHERE exam_id = ? AND student_id = ?').get(examId, studentId) as ExamAttempt | undefined;
+    if (!attempt) {
+      attempt = db.prepare(`
+        SELECT ea.* FROM exam_attempts ea
+        JOIN profiles p ON (p.id = ? OR p.student_id = ?)
+        WHERE ea.exam_id = ? AND (ea.student_id = p.id OR ea.student_id = p.student_id)
+      `).get(studentId, studentId, examId) as ExamAttempt | undefined;
+    }
     if (!attempt) throw new Error('Attempt not found');
 
     const isPublished = Boolean(attempt.is_published);

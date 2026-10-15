@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { dbService, syncDatabaseToCloud } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 
 export async function GET(
   req: NextRequest,
@@ -9,6 +9,7 @@ export async function GET(
   try {
     await requireAdmin();
     const { id } = await params;
+    await ensureCloudSyncReady();
     const exam = dbService.getExamById(id);
     if (!exam) {
       return NextResponse.json({ error: 'Exam not found' }, { status: 404 });
@@ -27,6 +28,7 @@ export async function DELETE(
   try {
     await requireAdmin();
     const { id } = await params;
+    await ensureCloudSyncReady();
 
     const success = dbService.deleteExam(id);
     if (!success) {

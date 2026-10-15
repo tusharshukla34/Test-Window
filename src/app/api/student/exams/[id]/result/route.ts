@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireStudent } from '@/lib/auth';
-import { dbService } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady } from '@/lib/db/database';
 
 export async function GET(
   req: NextRequest,
@@ -10,7 +10,15 @@ export async function GET(
     const session = await requireStudent();
     const { id } = await params;
 
-    const result = dbService.getStudentExamResult(id, session.userId);
+    await ensureCloudSyncReady();
+
+    let result;
+    try {
+      result = dbService.getStudentExamResult(id, session.userId);
+    } catch {
+      await ensureCloudSyncReady(true);
+      result = dbService.getStudentExamResult(id, session.userId);
+    }
     return NextResponse.json(result);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to retrieve exam result';

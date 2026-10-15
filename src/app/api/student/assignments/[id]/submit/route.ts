@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireStudent } from '@/lib/auth';
-import { dbService, syncDatabaseToCloud } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 
 export async function POST(
   req: NextRequest,
@@ -10,6 +10,8 @@ export async function POST(
     const session = await requireStudent();
     const { id } = await params;
     const body = await req.json();
+
+    await ensureCloudSyncReady();
 
     const { text_response, file_url, file_name, file_size, file_mime } = body;
 

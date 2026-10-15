@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { dbService, syncDatabaseToCloud } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 
 export async function GET() {
   try {
     await requireAdmin();
+    await ensureCloudSyncReady();
     const questions = dbService.getAllQuestions();
     return NextResponse.json(questions);
   } catch (err: unknown) {
@@ -16,6 +17,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAdmin();
+    await ensureCloudSyncReady();
     const body = await req.json();
 
     const { subject, topic, difficulty, question_text, options, correct_option_id, explanation, marks, negative_penalty } = body;

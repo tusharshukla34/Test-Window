@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbService, syncDatabaseToCloud } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 import { getSessionUser } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
@@ -8,6 +8,8 @@ export async function POST(req: NextRequest) {
     if (!user || user.role !== 'admin') {
       return NextResponse.json({ error: 'Unauthorized. Admin access required.' }, { status: 403 });
     }
+
+    await ensureCloudSyncReady();
 
     const body = await req.json();
     const { exam_id, batch_id, student_ids, audit_note } = body;

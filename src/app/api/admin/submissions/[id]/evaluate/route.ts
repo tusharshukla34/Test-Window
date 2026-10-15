@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { dbService, syncDatabaseToCloud } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 
 export async function POST(
   req: NextRequest,
@@ -9,6 +9,7 @@ export async function POST(
   try {
     const session = await requireAdmin();
     const { id } = await params;
+    await ensureCloudSyncReady();
     const body = await req.json();
 
     const { marks_awarded, feedback, release_draft } = body;

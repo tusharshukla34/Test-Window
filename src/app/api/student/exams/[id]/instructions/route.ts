@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireStudent } from '@/lib/auth';
-import { dbService } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady } from '@/lib/db/database';
 
 export async function GET(
   req: NextRequest,
@@ -9,6 +9,8 @@ export async function GET(
   try {
     const session = await requireStudent();
     const { id } = await params;
+
+    await ensureCloudSyncReady();
 
     const eligibility = dbService.getStudentExamEligibility(id, session.userId);
     if (!eligibility.is_eligible) {

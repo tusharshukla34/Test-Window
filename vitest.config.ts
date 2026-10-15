@@ -5,6 +5,9 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
+    env: {
+      DATA_DIR: path.resolve(__dirname, './data/test-env'),
+    },
   },
   resolve: {
     alias: {

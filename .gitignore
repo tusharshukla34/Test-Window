@@ -46,4 +46,5 @@ data/*.db-wal
 data/*.db-shm
 data/uploads/*
 !data/uploads/.gitkeep
+data/test-env/
 scratch/

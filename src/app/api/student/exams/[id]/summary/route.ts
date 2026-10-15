@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireStudent } from '@/lib/auth';
-import { dbService } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady } from '@/lib/db/database';
 
 export async function GET(
   req: NextRequest,
@@ -16,7 +16,15 @@ export async function GET(
       return NextResponse.json({ error: 'attempt_id query param is required' }, { status: 400 });
     }
 
-    const summary = dbService.getExamAttemptSummary(attempt_id, session.userId);
+    await ensureCloudSyncReady();
+
+    let summary;
+    try {
+      summary = dbService.getExamAttemptSummary(attempt_id, session.userId);
+    } catch {
+      await ensureCloudSyncReady(true);
+      summary = dbService.getExamAttemptSummary(attempt_id, session.userId);
+    }
     return NextResponse.json(summary);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error retrieving exam summary';

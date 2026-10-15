@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbService, syncDatabaseToCloud } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 import { getSessionUser } from '@/lib/auth';
 
 export async function GET(
@@ -13,6 +13,7 @@ export async function GET(
     }
 
     const { id: attemptId } = await context.params;
+    await ensureCloudSyncReady();
     const evaluationData = dbService.getAttemptForEvaluation(attemptId);
     return NextResponse.json(evaluationData);
   } catch (err: unknown) {
@@ -35,6 +36,7 @@ export async function POST(
     }
 
     const { id: attemptId } = await context.params;
+    await ensureCloudSyncReady();
     const body = await req.json();
 
     const updated = dbService.saveAttemptEvaluation(attemptId, user.id, {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireStudent } from '@/lib/auth';
-import { dbService, syncDatabaseToCloud } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 
 export async function POST(
   req: NextRequest,
@@ -14,6 +14,12 @@ export async function POST(
     const { attempt_id } = body;
     if (!attempt_id) {
       return NextResponse.json({ error: 'attempt_id is required' }, { status: 400 });
+    }
+
+    await ensureCloudSyncReady();
+
+    if (!dbService.getExamAttempt(attempt_id)) {
+      await ensureCloudSyncReady(true);
     }
 
     const finalizedAttempt = dbService.finalizeExamAttempt(attempt_id, session.userId);
