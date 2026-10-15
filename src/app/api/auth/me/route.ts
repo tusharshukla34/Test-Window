@@ -1,21 +1,39 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { dbService } from '@/lib/db/database';
-
+import { dbService, ensureCloudSyncReady } from '@/lib/db/database';
 
 export async function GET() {
-  const session = await getSession();
-  if (!session) {
-    return NextResponse.json({ authenticated: false }, { status: 401 });
-  }
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ authenticated: false }, { status: 401 });
+    }
 
-  const user = dbService.getUserById(session.userId);
-  if (!user) {
-    return NextResponse.json({ authenticated: false }, { status: 401 });
-  }
+    await ensureCloudSyncReady();
 
-  return NextResponse.json({
-    authenticated: true,
-    user
-  });
+    const user = dbService.getUserById(session.userId);
+    if (user) {
+      return NextResponse.json({
+        authenticated: true,
+        user
+      });
+    }
+
+    // Resilient fallback using signed session payload if DB record lookup is syncing
+    return NextResponse.json({
+      authenticated: true,
+      user: {
+        id: session.userId,
+        student_id: session.studentId || null,
+        name: session.name,
+        email: session.email,
+        role: session.role,
+        avatar_url: null
+      }
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Auth verification error';
+    return NextResponse.json({ authenticated: false, error: message }, { status: 500 });
+  }
 }
+

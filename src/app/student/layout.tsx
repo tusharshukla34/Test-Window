@@ -16,12 +16,35 @@ import {
 } from 'lucide-react';
 import StudentProfileModal from '@/components/student/StudentProfileModal';
 
+interface StudentUser {
+  id?: string;
+  name: string;
+  student_id: string | null;
+  email: string;
+  avatar_url?: string | null;
+}
+
+let cachedStudentUser: StudentUser | null = null;
+
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
-  const [user, setUser] = useState<{ id?: string; name: string; student_id: string; email: string; avatar_url?: string | null } | null>(null);
+  const [user, setUser] = useState<StudentUser | null>(() => {
+    if (cachedStudentUser) return cachedStudentUser;
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('cybrom_student_user');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          cachedStudentUser = parsed;
+          return parsed;
+        }
+      } catch {}
+    }
+    return null;
+  });
   const [notifications, setNotifications] = useState<{ id: string; title: string; message: string; is_read: boolean }[]>([]);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
 
@@ -34,6 +57,10 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
       .then(data => {
         if (data.authenticated && data.user) {
           setUser(data.user);
+          cachedStudentUser = data.user;
+          try {
+            localStorage.setItem('cybrom_student_user', JSON.stringify(data.user));
+          } catch {}
         }
       })
       .catch(() => {});
@@ -47,6 +74,10 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
   }, []);
 
   const handleLogout = async () => {
+    cachedStudentUser = null;
+    try {
+      localStorage.removeItem('cybrom_student_user');
+    } catch {}
     await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/login');
   };
@@ -75,20 +106,33 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
           className="flex items-center gap-2 overflow-hidden text-left hover:opacity-80 transition cursor-pointer"
           title="Click to edit name or upload photo"
         >
-          {user?.avatar_url ? (
-            <img
-              src={user.avatar_url}
-              alt={user.name}
-              className="w-8 h-8 rounded-lg object-cover border border-teal-200 shrink-0 shadow-xs"
-            />
+          {user ? (
+            user.avatar_url ? (
+              <img
+                src={user.avatar_url}
+                alt={user.name}
+                className="w-8 h-8 rounded-lg object-cover border border-teal-200 shrink-0 shadow-xs"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+                {user.name.slice(0, 2).toUpperCase()}
+              </div>
+            )
           ) : (
-            <div className="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
-              <GraduationCap size={18} />
-            </div>
+            <div className="w-8 h-8 rounded-lg bg-slate-200 animate-pulse shrink-0"></div>
           )}
           <div className="truncate min-w-0">
-            <h1 className="font-bold text-slate-900 text-xs sm:text-sm leading-tight truncate">{user?.name || 'Student Portal'}</h1>
-            <span className="text-[10px] text-teal-600 font-mono font-semibold">{user?.student_id || 'Student'}</span>
+            {user ? (
+              <>
+                <h1 className="font-bold text-slate-900 text-xs sm:text-sm leading-tight truncate">{user.name}</h1>
+                <span className="text-[10px] text-teal-600 font-mono font-semibold">{user.student_id || 'Student'}</span>
+              </>
+            ) : (
+              <div className="space-y-1 py-0.5 animate-pulse">
+                <div className="h-3 w-20 bg-slate-200 rounded"></div>
+                <div className="h-2 w-12 bg-slate-200 rounded"></div>
+              </div>
+            )}
           </div>
         </button>
 
@@ -172,20 +216,33 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
             className="w-full text-left bg-slate-50 hover:bg-slate-100/90 rounded-xl p-3 mb-3 border border-slate-100 transition group flex items-center gap-2.5 cursor-pointer"
             title="Click to edit name or upload photo"
           >
-            {user?.avatar_url ? (
-              <img
-                src={user.avatar_url}
-                alt={user.name}
-                className="w-8 h-8 rounded-full object-cover border border-teal-200 shrink-0 shadow-xs"
-              />
+            {user ? (
+              user.avatar_url ? (
+                <img
+                  src={user.avatar_url}
+                  alt={user.name}
+                  className="w-8 h-8 rounded-full object-cover border border-teal-200 shrink-0 shadow-xs"
+                />
+              ) : (
+                <span className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 font-bold flex items-center justify-center text-xs shrink-0 group-hover:bg-teal-200 transition">
+                  {user.name.slice(0, 2).toUpperCase()}
+                </span>
+              )
             ) : (
-              <span className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 font-bold flex items-center justify-center text-xs shrink-0 group-hover:bg-teal-200 transition">
-                {user?.name ? user.name.slice(0, 2).toUpperCase() : 'ST'}
-              </span>
+              <div className="w-8 h-8 rounded-full bg-slate-200 animate-pulse shrink-0"></div>
             )}
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-slate-800 truncate group-hover:text-teal-700 transition">{user?.name || 'Student'}</p>
-              <p className="text-[11px] font-mono text-teal-600 font-semibold mt-0.5">{user?.student_id || 'ID Pending'}</p>
+              {user ? (
+                <>
+                  <p className="text-xs font-bold text-slate-800 truncate group-hover:text-teal-700 transition">{user.name}</p>
+                  <p className="text-[11px] font-mono text-teal-600 font-semibold mt-0.5">{user.student_id || 'Student'}</p>
+                </>
+              ) : (
+                <div className="space-y-1.5 animate-pulse">
+                  <div className="h-3 w-20 bg-slate-200 rounded"></div>
+                  <div className="h-2.5 w-14 bg-slate-200 rounded"></div>
+                </div>
+              )}
             </div>
           </button>
 
@@ -248,18 +305,26 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
               className="flex items-center gap-2 text-xs font-medium text-slate-700 hover:text-slate-900 p-1 pr-2.5 rounded-xl hover:bg-slate-100 transition cursor-pointer group"
               title="Click to edit name or upload photo"
             >
-              {user?.avatar_url ? (
-                <img
-                  src={user.avatar_url}
-                  alt={user.name}
-                  className="w-7 h-7 rounded-full object-cover border border-teal-200 shadow-xs"
-                />
+              {user ? (
+                user.avatar_url ? (
+                  <img
+                    src={user.avatar_url}
+                    alt={user.name}
+                    className="w-7 h-7 rounded-full object-cover border border-teal-200 shadow-xs"
+                  />
+                ) : (
+                  <span className="w-7 h-7 rounded-full bg-teal-100 text-teal-700 font-bold flex items-center justify-center text-[11px] group-hover:bg-teal-200 transition shadow-xs">
+                    {user.name.slice(0, 2).toUpperCase()}
+                  </span>
+                )
               ) : (
-                <span className="w-7 h-7 rounded-full bg-teal-100 text-teal-700 font-bold flex items-center justify-center text-[11px] group-hover:bg-teal-200 transition shadow-xs">
-                  {user?.name ? user.name.slice(0, 2).toUpperCase() : 'ST'}
-                </span>
+                <div className="w-7 h-7 rounded-full bg-slate-200 animate-pulse"></div>
               )}
-              <span className="hidden sm:inline font-bold group-hover:text-teal-700 transition">{user?.name || 'Student'}</span>
+              {user ? (
+                <span className="hidden sm:inline font-bold group-hover:text-teal-700 transition">{user.name}</span>
+              ) : (
+                <div className="hidden sm:block h-3.5 w-16 bg-slate-200 rounded animate-pulse"></div>
+              )}
             </button>
           </div>
         </header>
