@@ -158,9 +158,6 @@ export default function StudentBatchesPage() {
                         <h3 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
                           {batch.batch_name}
                         </h3>
-                        <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
-                          Cohort ID: {batch.batch_id}
-                        </span>
                       </div>
                       {batch.batch_description && (
                         <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">
