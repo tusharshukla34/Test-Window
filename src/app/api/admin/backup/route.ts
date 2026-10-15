@@ -14,10 +14,14 @@ export async function GET() {
 
     const webhookUrl = dbService.getGoogleSheetWebhookUrl();
     const lastSync = dbService.getSetting('google_sheet_last_sync');
+    const spreadsheetUrl = dbService.getSetting('google_sheet_spreadsheet_url');
+    const sheetTitle = dbService.getSetting('google_sheet_title');
 
     return NextResponse.json({
       configured: Boolean(webhookUrl),
       webhookUrl: webhookUrl || '',
+      spreadsheetUrl: spreadsheetUrl || null,
+      sheetTitle: sheetTitle || null,
       lastSync: lastSync || null
     });
   } catch (err: unknown) {
@@ -56,7 +60,9 @@ export async function POST(req: NextRequest) {
       if (res.success) {
         return NextResponse.json({
           success: true,
-          message: res.message || 'Connected to Google Sheet successfully!'
+          message: res.message || 'Connected to Google Sheet successfully!',
+          sheet_url: res.sheet_url,
+          sheet_title: res.sheet_title
         });
       } else {
         return NextResponse.json({

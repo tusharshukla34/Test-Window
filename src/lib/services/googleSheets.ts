@@ -21,11 +21,20 @@ export interface ExamResultPayload {
   evaluation_status?: string;
 }
 
+export interface GoogleSheetResponse {
+  success: boolean;
+  message?: string;
+  sheet_url?: string;
+  sheet_title?: string;
+  count?: number;
+  [key: string]: any;
+}
+
 /**
  * Sends a JSON payload to the configured Google Apps Script Webhook.
  * Non-blocking by design so user API operations never stall or fail.
  */
-export async function postToGoogleSheet(payload: Record<string, any>, overrideUrl?: string): Promise<{ success: boolean; message?: string }> {
+export async function postToGoogleSheet(payload: Record<string, any>, overrideUrl?: string): Promise<GoogleSheetResponse> {
   try {
     const webhookUrl = overrideUrl || dbService.getGoogleSheetWebhookUrl();
     if (!webhookUrl) {
@@ -55,7 +64,18 @@ export async function postToGoogleSheet(payload: Record<string, any>, overrideUr
     }
 
     if (res.ok && data?.status !== 'error') {
-      return { success: true, message: data?.message || 'Synced successfully' };
+      if (data?.sheet_url) {
+        dbService.setSetting('google_sheet_spreadsheet_url', data.sheet_url);
+      }
+      if (data?.sheet_title) {
+        dbService.setSetting('google_sheet_title', data.sheet_title);
+      }
+      return {
+        success: true,
+        message: data?.message || 'Synced successfully',
+        sheet_url: data?.sheet_url,
+        sheet_title: data?.sheet_title
+      };
     } else {
       return { success: false, message: data?.error || 'Google Sheet returned an error response' };
     }

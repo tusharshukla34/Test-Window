@@ -25,6 +25,8 @@ export default function AdminBackupPage() {
   const router = useRouter();
 
   const [webhookUrl, setWebhookUrl] = useState('');
+  const [spreadsheetUrl, setSpreadsheetUrl] = useState<string | null>(null);
+  const [sheetTitle, setSheetTitle] = useState<string | null>(null);
   const [isConfigured, setIsConfigured] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -64,6 +66,8 @@ export default function AdminBackupPage() {
       if (statusData) {
         setIsConfigured(Boolean(statusData.configured));
         setWebhookUrl(statusData.webhookUrl || '');
+        setSpreadsheetUrl(statusData.spreadsheetUrl || null);
+        setSheetTitle(statusData.sheetTitle || null);
         setLastSync(statusData.lastSync || null);
       }
 
@@ -134,6 +138,8 @@ export default function AdminBackupPage() {
       const data = await res.json();
       if (res.ok) {
         setIsConfigured(true);
+        if (data.sheet_url) setSpreadsheetUrl(data.sheet_url);
+        if (data.sheet_title) setSheetTitle(data.sheet_title);
         setStatusMessage({ type: 'success', text: `🟢 Verified! ${data.message}` });
       } else {
         setStatusMessage({ type: 'error', text: data.error || 'Connection failed' });
@@ -215,6 +221,9 @@ export default function AdminBackupPage() {
     var action = data.action;
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
+    var sheetUrl = ss.getUrl();
+    var sheetTitle = ss.getName();
+
     // 1. Dedicated Exam Sheet Creation & Result Record
     if (action === "record_exam_result") {
       var examTitle = data.exam_title || "Exam";
@@ -280,7 +289,7 @@ export default function AdminBackupPage() {
         sheet.appendRow(rowValues);
       }
 
-      return ContentService.createTextOutput(JSON.stringify({ status: "success", type: "exam_result_recorded", sheet: safeSheetName }))
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", type: "exam_result_recorded", sheet: safeSheetName, sheet_url: sheetUrl, sheet_title: sheetTitle }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -305,7 +314,7 @@ export default function AdminBackupPage() {
         targetSheet.appendRow(data.row);
       }
 
-      return ContentService.createTextOutput(JSON.stringify({ status: "success", sheet: targetSheetName }))
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", sheet: targetSheetName, sheet_url: sheetUrl, sheet_title: sheetTitle }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -335,13 +344,13 @@ export default function AdminBackupPage() {
         }
       }
 
-      return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Full backup completed" }))
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Full backup completed", sheet_url: sheetUrl, sheet_title: sheetTitle }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
     // 4. Ping / Test
     if (action === "ping") {
-      return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Google Sheet Webhook Active & Connected!", title: ss.getName() }))
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Google Sheet Webhook Active & Connected!", title: sheetTitle, sheet_url: sheetUrl, sheet_title: sheetTitle }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -379,7 +388,17 @@ export default function AdminBackupPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 relative z-10">
+        <div className="flex items-center gap-2.5 relative z-10 flex-wrap">
+          {spreadsheetUrl && (
+            <a
+              href={spreadsheetUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3.5 py-2 rounded-xl text-xs font-extrabold bg-white text-emerald-950 hover:bg-emerald-50 shadow-md inline-flex items-center gap-2 transition"
+            >
+              <ExternalLink size={15} className="text-emerald-700" /> Open Live Google Sheet
+            </a>
+          )}
           <div className={`px-3 py-1.5 rounded-full text-xs font-extrabold flex items-center gap-1.5 border ${
             isConfigured
               ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/30'
@@ -390,6 +409,35 @@ export default function AdminBackupPage() {
           </div>
         </div>
       </div>
+
+      {/* Connected Sheet Card with Direct Link */}
+      {spreadsheetUrl && (
+        <ClayCard className="p-4 bg-emerald-50/90 border border-emerald-200 shadow-sm animate-in fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
+                <FileSpreadsheet size={20} />
+              </div>
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 block">
+                  Connected Google Spreadsheet
+                </span>
+                <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">
+                  {sheetTitle || 'Cybrom Portal – Live Backup & Exam Results'}
+                </h4>
+              </div>
+            </div>
+            <a
+              href={spreadsheetUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="clay-btn bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs inline-flex items-center gap-2 shrink-0 transition"
+            >
+              <ExternalLink size={15} /> Open Spreadsheet in New Tab
+            </a>
+          </div>
+        </ClayCard>
+      )}
 
       {/* Status Alert Notification */}
       {statusMessage && (
