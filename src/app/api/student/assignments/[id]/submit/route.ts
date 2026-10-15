@@ -33,6 +33,16 @@ export async function POST(
 
     await syncDatabaseToCloud();
 
+    // Real-Time Google Sheet Sync
+    try {
+      const { syncAssignmentSubmission } = await import('@/lib/services/googleSheets');
+      const student = dbService.getUserById(session.userId);
+      const batch = targetBatchId ? dbService.getBatchById(targetBatchId) : null;
+      if (asg && student) {
+        syncAssignmentSubmission(submission, student.name, asg.title, batch?.name || 'General');
+      }
+    } catch {}
+
     return NextResponse.json({ success: true, submission });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Submission failed';

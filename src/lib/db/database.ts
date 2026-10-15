@@ -352,6 +352,12 @@ function initSchema() {
       metadata TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS portal_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // Dynamic schema migrations for manual evaluation & publishing
@@ -3083,5 +3089,36 @@ export const dbService = {
       events,
       batches
     };
+  },
+
+  // Portal System Settings
+  getSetting(key: string): string | null {
+    try {
+      const row = db.prepare('SELECT value FROM portal_settings WHERE key = ?').get(key) as { value: string } | undefined;
+      return row ? row.value : null;
+    } catch {
+      return null;
+    }
+  },
+
+  setSetting(key: string, value: string): void {
+    try {
+      db.prepare(`
+        INSERT INTO portal_settings (key, value, updated_at)
+        VALUES (?, ?, datetime('now'))
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')
+      `).run(key, value);
+    } catch (err) {
+      console.error('[DB SETTING SAVE ERROR]:', err);
+    }
+  },
+
+  getGoogleSheetWebhookUrl(): string | null {
+    const dbUrl = this.getSetting('google_sheet_webhook_url');
+    if (dbUrl && dbUrl.trim()) return dbUrl.trim();
+    if (process.env.GOOGLE_SHEET_WEBHOOK_URL && process.env.GOOGLE_SHEET_WEBHOOK_URL.trim()) {
+      return process.env.GOOGLE_SHEET_WEBHOOK_URL.trim();
+    }
+    return null;
   }
 };

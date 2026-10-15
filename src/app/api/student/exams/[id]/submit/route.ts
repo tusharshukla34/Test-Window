@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireStudent } from '@/lib/auth';
 import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
+import { syncExamResult } from '@/lib/services/googleSheets';
 
 export async function POST(
   req: NextRequest,
@@ -25,6 +26,37 @@ export async function POST(
     const finalizedAttempt = dbService.finalizeExamAttempt(attempt_id, session.userId);
 
     await syncDatabaseToCloud();
+
+    // Real-Time Google Sheet Sync: Creates/updates dedicated exam sheet tab with student results
+    try {
+      const exam = dbService.getExamById(finalizedAttempt.exam_id);
+      const student = dbService.getUserById(session.userId);
+      const batch = finalizedAttempt.batch_id ? dbService.getBatchById(finalizedAttempt.batch_id) : null;
+
+      if (exam && student) {
+        syncExamResult({
+          exam_id: exam.id,
+          exam_title: exam.title,
+          student_id: student.student_id || student.id,
+          student_id_code: student.student_id,
+          student_name: student.name,
+          student_email: student.email,
+          batch_name: batch?.name || 'General Batch',
+          score: finalizedAttempt.total_score !== null && finalizedAttempt.total_score !== undefined ? finalizedAttempt.total_score : 0,
+          max_marks: exam.max_marks,
+          percentage: finalizedAttempt.percentage !== null && finalizedAttempt.percentage !== undefined ? finalizedAttempt.percentage : 0,
+          accuracy: finalizedAttempt.accuracy !== null && finalizedAttempt.accuracy !== undefined ? finalizedAttempt.accuracy : 0,
+          total_correct: finalizedAttempt.total_correct || 0,
+          total_incorrect: finalizedAttempt.total_incorrect || 0,
+          total_unattempted: finalizedAttempt.total_unattempted || 0,
+          time_spent_mins: Math.round((finalizedAttempt.time_spent_seconds || 0) / 60),
+          submitted_at: finalizedAttempt.submitted_at || new Date().toISOString(),
+          evaluation_status: finalizedAttempt.evaluation_status || 'submitted'
+        });
+      }
+    } catch (sheetErr) {
+      console.warn('[RealTime GoogleSheet ExamSync]:', sheetErr);
+    }
 
     return NextResponse.json({
       success: true,

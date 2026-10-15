@@ -73,6 +73,15 @@ export async function POST(req: NextRequest) {
 
     await syncDatabaseToCloud();
 
+    // Real-Time Google Sheet Sync
+    try {
+      const { syncAssignmentCreated } = await import('@/lib/services/googleSheets');
+      const allBatches = dbService.getAllBatches() || [];
+      const batchMap = new Map(allBatches.map(b => [b.id, b.name]));
+      const bNames = (batch_ids || []).map((id: string) => batchMap.get(id) || id);
+      syncAssignmentCreated(assignment, bNames);
+    } catch {}
+
     return NextResponse.json({ success: true, assignment });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to create assignment';

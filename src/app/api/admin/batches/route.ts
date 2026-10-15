@@ -31,6 +31,13 @@ export async function POST(req: NextRequest) {
     });
 
     await syncDatabaseToCloud();
+
+    // Real-Time Google Sheet Sync
+    try {
+      const { syncBatchCreated } = await import('@/lib/services/googleSheets');
+      syncBatchCreated(batch);
+    } catch {}
+
     return NextResponse.json({ success: true, batch });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to create batch';

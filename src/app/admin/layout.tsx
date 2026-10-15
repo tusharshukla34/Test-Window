@@ -14,6 +14,7 @@ import {
   FileSpreadsheet,
   ClipboardCheck,
   Calendar,
+  Cloud,
   Bell,
   LogOut,
   Menu,
@@ -40,6 +41,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: 'Question Bank', href: '/admin/question-bank', icon: HelpCircle },
     { label: 'Online Exams', href: '/admin/exams', icon: FileSpreadsheet },
     { label: 'Exam Evaluations', href: '/admin/exam-evaluations', icon: ClipboardCheck },
+    { label: 'Google Sheet Backup', href: '/admin/backup', icon: Cloud },
   ];
 
   useEffect(() => {

@@ -31,6 +31,12 @@ export async function POST(req: NextRequest) {
 
     await syncDatabaseToCloud();
 
+    // Real-Time Google Sheet Sync for Dedicated Exam Sheet Tab
+    try {
+      const { syncAllAttemptsForExam } = await import('@/lib/services/googleSheets');
+      syncAllAttemptsForExam(exam_id).catch(() => {});
+    } catch {}
+
     return NextResponse.json({
       success: true,
       published_count: result.published_count,
