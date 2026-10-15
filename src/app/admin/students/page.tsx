@@ -163,8 +163,8 @@ export default function StudentsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <GraduationCap size={24} className="text-indigo-600" /> Student Account Management
+          <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <GraduationCap size={24} className="text-indigo-600 shrink-0" /> Student Account Management
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
             Administer authenticated student accounts, batch allocations, and secure credentials.
@@ -177,7 +177,7 @@ export default function StudentsPage() {
             setStudentId(nextCode);
             setIsAddOpen(true);
           }}
-          className="shadow-md"
+          className="w-full sm:w-auto shadow-md"
         >
           <Plus size={16} /> Enroll New Student
         </ClayButton>
@@ -201,7 +201,7 @@ export default function StudentsPage() {
 
         {/* Table */}
         <div className="overflow-x-auto rounded-xl border border-slate-100">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-xs whitespace-nowrap">
             <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-semibold uppercase text-[10px]">
               <tr>
                 <th className="p-3">Student ID</th>

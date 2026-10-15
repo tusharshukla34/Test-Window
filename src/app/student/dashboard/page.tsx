@@ -74,9 +74,9 @@ export default function StudentDashboardPage() {
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* Welcome Hero Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 bg-gradient-to-r from-teal-900 via-teal-800 to-cyan-950 text-white p-6 sm:p-8 rounded-3xl shadow-xl shadow-teal-950/20 relative overflow-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 bg-gradient-to-r from-teal-900 via-teal-800 to-cyan-950 text-white p-5 sm:p-8 rounded-3xl shadow-xl shadow-teal-950/20 relative overflow-hidden">
         <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-radial from-cyan-400/20 to-transparent pointer-events-none"></div>
-        <div className="relative z-10 space-y-1.5">
+        <div className="relative z-10 space-y-1.5 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-[10px] uppercase tracking-widest text-teal-300 font-bold px-2 py-0.5 rounded-full bg-teal-950/50 border border-teal-700/50">
               Student Academic Portal
@@ -86,7 +86,7 @@ export default function StudentDashboardPage() {
             </span>
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+          <h1 className="text-xl sm:text-3xl font-black tracking-tight break-words">
             Hello, {data.student.name}
           </h1>
 
@@ -103,12 +103,12 @@ export default function StudentDashboardPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 relative z-10">
+        <div className="flex items-center gap-2 relative z-10 self-start sm:self-auto shrink-0">
           <ClayButton
             variant="teal"
             size="md"
             onClick={() => router.push('/student/exams')}
-            className="shadow-lg bg-cyan-400 text-slate-900 hover:bg-cyan-300 font-bold"
+            className="shadow-lg bg-cyan-400 text-slate-900 hover:bg-cyan-300 font-bold text-xs sm:text-sm"
           >
             <FileCheck2 size={16} /> Online Examinations
           </ClayButton>
@@ -209,20 +209,20 @@ export default function StudentDashboardPage() {
           ) : (
             <div className="divide-y divide-slate-100">
               {data.recent_submissions.map(sub => (
-                <div key={sub.id} className="py-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-bold text-slate-900">{sub.assignment_title}</p>
+                <div key={sub.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-900 break-words">{sub.assignment_title}</p>
                     <p className="text-[11px] text-slate-500">
                       Submitted on {new Date(sub.submitted_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' })}
                     </p>
                   </div>
-                  <div>
+                  <div className="self-start sm:self-auto shrink-0">
                     {sub.status === 'evaluated' ? (
-                      <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                         Evaluated ({sub.marks_awarded} pts)
                       </span>
                     ) : (
-                      <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
                         Under Review
                       </span>
                     )}
@@ -254,14 +254,14 @@ export default function StudentDashboardPage() {
           ) : (
             <div className="space-y-3">
               {data.recent_exam_results.map(res => (
-                <div key={res.id} className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-900">{res.exam_title}</h4>
+                <div key={res.id} className="p-3 sm:p-3.5 rounded-xl bg-slate-50 border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-bold text-slate-900 break-words">{res.exam_title}</h4>
                     <p className="text-[11px] text-slate-500 mt-0.5">
                       Accuracy: <strong className="text-teal-700">{res.accuracy}%</strong> • Batch Rank: <strong className="text-amber-600">#{res.rank || 1}</strong>
                     </p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-left sm:text-right shrink-0">
                     <span className="text-base font-black text-emerald-700 font-mono">
                       {res.total_score} / {res.max_marks}
                     </span>

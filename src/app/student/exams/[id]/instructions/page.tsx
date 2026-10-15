@@ -103,21 +103,21 @@ export default function ExamInstructionsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col justify-between">
+    <div className="min-h-screen bg-white flex flex-col justify-between overflow-x-hidden">
       {/* Top Test Header */}
-      <header className="border-b border-slate-200 px-6 py-3.5 flex items-center justify-between bg-white shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[#00bcd4] text-white flex items-center justify-center font-extrabold text-sm shadow-xs">
+      <header className="border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-3.5 flex items-center justify-between bg-white shadow-xs">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#00bcd4] text-white flex items-center justify-center font-extrabold text-xs sm:text-sm shadow-xs shrink-0">
             TS
           </div>
-          <h2 className="text-sm sm:text-base font-bold text-slate-800 tracking-tight">
+          <h2 className="text-xs sm:text-base font-bold text-slate-800 tracking-tight truncate">
             {exam.title}
           </h2>
         </div>
       </header>
 
-      {/* Main Two-Column Layout matching Reference Screenshots */}
-      <div className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col md:flex-row gap-8">
+      {/* Main Two-Column Layout */}
+      <div className="flex-1 max-w-7xl w-full mx-auto p-3.5 sm:p-6 lg:p-8 flex flex-col md:flex-row gap-6 md:gap-8">
         {/* Left Instruction Panel */}
         <div className="flex-1 space-y-6">
           {step === 1 ? (
@@ -245,33 +245,35 @@ export default function ExamInstructionsPage() {
           )}
         </div>
 
-        {/* Right Candidate Profile Panel matching Reference Screenshot */}
-        <div className="w-full md:w-64 border-t md:border-t-0 md:border-l border-slate-200 md:pl-6 flex flex-col items-center justify-start pt-4">
-          <div className="w-24 h-24 rounded-full bg-[#00bcd4] text-white flex items-center justify-center shadow-md">
-            <User size={50} />
+        {/* Candidate Profile Panel */}
+        <div className="w-full md:w-64 border-t md:border-t-0 md:border-l border-slate-200 md:pl-6 flex flex-row md:flex-col items-center justify-start gap-4 md:gap-0 pt-4 bg-slate-50 md:bg-transparent p-3.5 md:p-0 rounded-xl md:rounded-none">
+          <div className="w-16 h-16 md:w-24 md:h-24 rounded-full bg-[#00bcd4] text-white flex items-center justify-center shadow-md shrink-0">
+            <User size={32} className="md:w-12 md:h-12" />
           </div>
-          <h3 className="font-extrabold text-base text-slate-900 mt-3 text-center">
-            {candidate.name}
-          </h3>
-          <p className="text-xs font-mono text-slate-500 mt-0.5">
-            {candidate.student_id}
-          </p>
+          <div className="text-left md:text-center min-w-0">
+            <h3 className="font-extrabold text-sm md:text-base text-slate-900 md:mt-3 truncate">
+              {candidate.name}
+            </h3>
+            <p className="text-xs font-mono text-slate-500 mt-0.5">
+              {candidate.student_id}
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Bottom Action Footer matching Reference Screenshot */}
-      <footer className="border-t border-slate-200 px-6 py-4 bg-slate-50 flex items-center justify-between">
+      {/* Bottom Action Footer */}
+      <footer className="border-t border-slate-200 px-4 sm:px-6 py-3 sm:py-4 bg-slate-50 flex items-center justify-between gap-3">
         {step === 1 ? (
           <>
             <button
               onClick={() => router.push('/student/exams')}
-              className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1 px-3 py-2"
+              className="text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center gap-1 px-2.5 py-2"
             >
-              <ArrowLeft size={14} /> Go to Tests
+              <ArrowLeft size={14} /> Back
             </button>
             <button
               onClick={() => setStep(2)}
-              className="px-6 py-2 bg-[#90caf9] hover:bg-[#64b5f6] text-slate-900 font-bold text-xs rounded-md shadow-xs transition"
+              className="px-5 sm:px-6 py-2 bg-[#90caf9] hover:bg-[#64b5f6] text-slate-900 font-bold text-xs rounded-lg shadow-xs transition"
             >
               Next
             </button>
@@ -280,20 +282,20 @@ export default function ExamInstructionsPage() {
           <>
             <button
               onClick={() => setStep(1)}
-              className="px-5 py-2 bg-[#90caf9] hover:bg-[#64b5f6] text-slate-900 font-bold text-xs rounded-md shadow-xs transition"
+              className="px-4 sm:px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs rounded-lg transition"
             >
               Previous
             </button>
             <button
               disabled={!declarationChecked || starting}
               onClick={handleStartExam}
-              className={`px-8 py-2.5 rounded-md font-extrabold text-xs text-white shadow-md transition ${
+              className={`px-5 sm:px-8 py-2.5 rounded-lg font-extrabold text-xs text-white shadow-md transition ${
                 declarationChecked && !starting
-                  ? 'bg-[#00bcd4] hover:bg-[#00acc1] cursor-pointer'
+                  ? 'bg-[#00bcd4] hover:bg-[#00acc1] active:bg-[#0097a7] cursor-pointer'
                   : 'bg-slate-300 text-slate-500 cursor-not-allowed'
               }`}
             >
-              {starting ? 'Preparing Test Engine...' : 'I am ready to begin'}
+              {starting ? 'Preparing...' : 'I am ready to begin'}
             </button>
           </>
         )}

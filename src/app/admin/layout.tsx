@@ -58,23 +58,46 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="min-h-screen bg-[#f1f5f9] flex flex-col md:flex-row">
       {/* Mobile Top Header */}
-      <div className="md:hidden bg-white px-4 py-3 border-b border-slate-200 flex items-center justify-between shadow-xs sticky top-0 z-30">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-sm">
+      <div className="md:hidden bg-white/95 backdrop-blur-md px-3.5 py-2.5 border-b border-slate-200 flex items-center justify-between shadow-xs sticky top-0 z-30">
+        <div className="flex items-center gap-2 overflow-hidden">
+          <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-sm shrink-0">
             TS
           </div>
-          <div>
-            <h1 className="font-bold text-slate-800 text-sm leading-tight">Tushar Shukla</h1>
+          <div className="truncate min-w-0">
+            <h1 className="font-bold text-slate-800 text-xs sm:text-sm leading-tight truncate">Tushar Shukla</h1>
             <span className="text-[10px] text-indigo-600 font-semibold tracking-wide uppercase">Trainer Portal</span>
           </div>
         </div>
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-2 text-slate-600 rounded-lg hover:bg-slate-100"
-        >
-          {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
+
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+            className="p-2 text-slate-600 hover:text-slate-900 rounded-lg relative"
+            title="Notifications"
+          >
+            <Bell size={18} />
+            {unreadCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500"></span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-2 text-slate-700 rounded-lg hover:bg-slate-100 transition"
+            aria-label="Toggle Menu"
+          >
+            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </div>
       </div>
+
+      {/* Backdrop overlay for mobile menu */}
+      {mobileMenuOpen && (
+        <div
+          onClick={() => setMobileMenuOpen(false)}
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-30 md:hidden animate-in fade-in"
+        />
+      )}
 
       {/* Sidebar Desktop */}
       <aside className={`
@@ -143,7 +166,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         {/* Top Navbar */}
-        <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/80 px-6 py-3.5 flex items-center justify-between sticky top-0 z-20">
+        <header className="hidden md:flex bg-white/80 backdrop-blur-md border-b border-slate-200/80 px-6 py-3.5 items-center justify-between sticky top-0 z-20">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">
               Live Classroom Portal
@@ -197,7 +220,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </header>
 
         {/* Page Children */}
-        <main className="p-4 sm:p-6 lg:p-8 flex-1">
+        <main className="p-3 sm:p-6 lg:p-8 flex-1 max-w-7xl w-full mx-auto">
           {children}
         </main>
       </div>

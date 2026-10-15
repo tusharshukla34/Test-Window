@@ -123,8 +123,8 @@ export default function StudentAssignmentsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-          <BookOpen size={24} className="text-teal-600" /> Daily Homework Assignments
+        <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+          <BookOpen size={24} className="text-teal-600 shrink-0" /> Daily Homework Assignments
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
           Complete daily tasks assigned to your batch, upload working files, and view trainer feedback.
@@ -182,7 +182,7 @@ export default function StudentAssignmentsPage() {
                   {statusBadge}
                 </div>
 
-                <h3 className="text-base font-extrabold text-slate-900 leading-snug">
+                <h3 className="text-base font-extrabold text-slate-900 leading-snug break-words">
                   {asg.title}
                 </h3>
 
@@ -194,18 +194,18 @@ export default function StudentAssignmentsPage() {
                 {sub && sub.status === 'evaluated' && sub.feedback && (
                   <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-950 space-y-1">
                     <p className="font-bold flex items-center gap-1.5 text-emerald-900">
-                      <MessageSquare size={14} /> Trainer Tushar Shukla Feedback:
+                      <MessageSquare size={14} className="shrink-0" /> Trainer Feedback:
                     </p>
-                    <p className="text-[11px] text-emerald-800">{sub.feedback}</p>
+                    <p className="text-[11px] text-emerald-800 break-words">{sub.feedback}</p>
                   </div>
                 )}
               </div>
 
               {/* Bottom Card Actions */}
-              <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
+              <div className="mt-5 pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
                 <div>
                   <div className="flex items-center gap-1 text-slate-500 text-[11px]">
-                    <Clock size={13} /> Due: {deadline.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    <Clock size={13} className="shrink-0" /> Due: {deadline.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </div>
                   <div className="text-[10px] text-slate-400 mt-0.5">Max Score: {asg.max_score} pts</div>
                 </div>
@@ -214,6 +214,7 @@ export default function StudentAssignmentsPage() {
                   variant={sub?.status === 'evaluated' ? 'outline' : 'teal'}
                   size="sm"
                   onClick={() => handleOpenSubmission(asg)}
+                  className="w-full sm:w-auto"
                 >
                   {sub ? 'View / Resubmit' : 'Submit Work'}
                 </ClayButton>

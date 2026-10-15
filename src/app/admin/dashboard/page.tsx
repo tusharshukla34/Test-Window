@@ -76,11 +76,11 @@ export default function AdminDashboardPage() {
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* Welcome Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-indigo-900 via-indigo-800 to-indigo-950 text-white p-6 sm:p-8 rounded-3xl shadow-xl shadow-indigo-950/20 relative overflow-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-indigo-900 via-indigo-800 to-indigo-950 text-white p-5 sm:p-8 rounded-3xl shadow-xl shadow-indigo-950/20 relative overflow-hidden">
         <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-radial from-indigo-500/20 to-transparent pointer-events-none"></div>
-        <div className="relative z-10">
-          <span className="text-xs uppercase tracking-widest text-indigo-300 font-bold">Trainer Executive Dashboard</span>
-          <h1 className="text-2xl sm:text-3xl font-black mt-1 tracking-tight">
+        <div className="relative z-10 min-w-0">
+          <span className="text-[10px] sm:text-xs uppercase tracking-widest text-indigo-300 font-bold">Trainer Executive Dashboard</span>
+          <h1 className="text-xl sm:text-3xl font-black mt-1 tracking-tight break-words">
             Welcome, Tushar Shukla
           </h1>
           <p className="text-indigo-200 text-xs sm:text-sm mt-1.5 max-w-xl">
@@ -238,12 +238,12 @@ export default function AdminDashboardPage() {
           ) : (
             <div className="divide-y divide-slate-100">
               {stats?.recent_submissions.map(sub => (
-                <div key={sub.id} className="py-3 flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-bold text-slate-900">{sub.student_name}</p>
-                    <p className="text-[11px] text-slate-500">{sub.assignment_title} • <span className="font-semibold text-slate-600">{sub.batch_name}</span></p>
+                <div key={sub.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-900 break-words">{sub.student_name}</p>
+                    <p className="text-[11px] text-slate-500 break-words">{sub.assignment_title} • <span className="font-semibold text-slate-600">{sub.batch_name}</span></p>
                   </div>
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                       sub.status === 'evaluated'
                         ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'

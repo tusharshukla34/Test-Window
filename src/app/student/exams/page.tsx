@@ -33,8 +33,8 @@ export default function StudentExamsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-          <FileSpreadsheet size={24} className="text-teal-600" /> Online Examinations
+        <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+          <FileSpreadsheet size={24} className="text-teal-600 shrink-0" /> Online Examinations
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
           Standardized AE/JE mock examinations with server-authoritative timers and negative marking.
@@ -92,7 +92,7 @@ export default function StudentExamsPage() {
               </div>
 
               {/* Bottom Action */}
-              <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
+              <div className="mt-5 pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
                 {isCompleted ? (
                   <>
                     <div className="font-mono text-xs font-bold text-emerald-700">
@@ -102,6 +102,7 @@ export default function StudentExamsPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => router.push(`/student/exams/${exam.id}/result`)}
+                      className="w-full sm:w-auto"
                     >
                       <Trophy size={14} className="text-amber-500" /> View Result
                     </ClayButton>
@@ -115,6 +116,7 @@ export default function StudentExamsPage() {
                       variant="primary"
                       size="sm"
                       onClick={() => router.push(`/student/exams/${exam.id}/attempt`)}
+                      className="w-full sm:w-auto"
                     >
                       <Play size={14} /> Resume Test
                     </ClayButton>
@@ -126,6 +128,7 @@ export default function StudentExamsPage() {
                       variant="teal"
                       size="sm"
                       onClick={() => router.push(`/student/exams/${exam.id}/instructions`)}
+                      className="w-full sm:w-auto"
                     >
                       Instructions & Begin <ArrowRight size={14} />
                     </ClayButton>

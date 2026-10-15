@@ -55,7 +55,7 @@ export default function StudentResultsHubPage() {
           <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 flex items-center gap-1">
             <Sparkles size={13} /> Examination Performance Hub
           </span>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+          <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight">
             My Examination Results
           </h1>
           <p className="text-xs text-slate-500">
@@ -86,7 +86,7 @@ export default function StudentResultsHubPage() {
             return (
               <ClayCard
                 key={exam.id}
-                className="p-5 flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow bg-white border border-slate-200/80"
+                className="p-4 sm:p-5 flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow bg-white border border-slate-200/80"
               >
                 <div className="space-y-2">
                   <div className="flex items-start justify-between gap-2">
@@ -96,32 +96,32 @@ export default function StudentResultsHubPage() {
 
                     {/* Status Badges */}
                     {isPublished ? (
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                        <ShieldCheck size={12} className="text-emerald-600" /> Result Published
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1 shrink-0">
+                        <ShieldCheck size={12} className="text-emerald-600" /> Published
                       </span>
                     ) : isEvaluatedNotPublished ? (
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
-                        <Clock size={12} /> Evaluated — Not Yet Published
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1 shrink-0">
+                        <Clock size={12} /> Evaluated
                       </span>
                     ) : isAwaiting ? (
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
-                        <Clock size={12} /> Awaiting Trainer Evaluation
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1 shrink-0">
+                        <Clock size={12} /> Awaiting Review
                       </span>
                     ) : (
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
-                        Pending Attempt
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 shrink-0">
+                        Pending
                       </span>
                     )}
                   </div>
 
-                  <h3 className="font-bold text-base text-slate-900 leading-snug">
+                  <h3 className="font-bold text-base text-slate-900 leading-snug break-words">
                     {exam.title}
                   </h3>
 
-                  <div className="flex items-center gap-4 text-xs text-slate-500 pt-1">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-slate-500 pt-1">
                     <span>{exam.total_questions} Questions</span>
                     <span>•</span>
-                    <span>Max {exam.max_marks} Points</span>
+                    <span>Max {exam.max_marks} Pts</span>
                     <span>•</span>
                     <span>{exam.duration_minutes} Mins</span>
                   </div>

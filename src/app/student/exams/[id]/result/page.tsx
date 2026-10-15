@@ -79,10 +79,10 @@ export default function StudentExamResultPage() {
         </button>
 
         {/* Neutral Submission Confirmation Card */}
-        <ClayCard className="p-8 text-center space-y-6 bg-white border border-slate-200/80 shadow-md">
+        <ClayCard className="p-4 sm:p-8 text-center space-y-5 sm:space-y-6 bg-white border border-slate-200/80 shadow-md">
           {/* Status Icon */}
-          <div className="w-16 h-16 rounded-full bg-emerald-50 border-2 border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto shadow-sm">
-            <CheckCircle2 size={36} />
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-emerald-50 border-2 border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto shadow-sm">
+            <CheckCircle2 size={32} className="sm:w-9 sm:h-9" />
           </div>
 
           {/* Heading */}
@@ -97,21 +97,21 @@ export default function StudentExamResultPage() {
               {status_message || 'Submitted — Awaiting Trainer Evaluation'}
             </span>
 
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+            <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight">
               Your examination has been submitted successfully.
             </h1>
-            <p className="text-sm text-slate-600 max-w-lg mx-auto leading-relaxed">
+            <p className="text-xs sm:text-sm text-slate-600 max-w-lg mx-auto leading-relaxed">
               Your trainer will evaluate your answers and publish the results when they are ready.
             </p>
           </div>
 
           {/* Submission Details Summary */}
-          <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-5 text-left divide-y divide-slate-200/60 text-xs">
-            <div className="pb-3 flex items-center justify-between">
+          <div className="bg-slate-50 border border-slate-200/70 rounded-2xl p-4 sm:p-5 text-left divide-y divide-slate-200/60 text-xs">
+            <div className="pb-2.5 sm:pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
               <span className="font-semibold text-slate-500">Examination</span>
-              <span className="font-bold text-slate-900 text-right">{exam.title}</span>
+              <span className="font-bold text-slate-900 sm:text-right break-words">{exam.title}</span>
             </div>
-            <div className="py-3 flex items-center justify-between">
+            <div className="py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
               <span className="font-semibold text-slate-500">Submission Timestamp</span>
               <span className="font-bold text-slate-900 font-mono">
                 {attempt.submitted_at
@@ -123,11 +123,11 @@ export default function StudentExamResultPage() {
                   : 'Recorded on Server'}
               </span>
             </div>
-            <div className="py-3 flex items-center justify-between">
+            <div className="py-2.5 sm:py-3 flex items-center justify-between">
               <span className="font-semibold text-slate-500">Total Questions</span>
               <span className="font-bold text-slate-900">{exam.total_questions} Questions</span>
             </div>
-            <div className="pt-3 flex items-center justify-between">
+            <div className="pt-2.5 sm:pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
               <span className="font-semibold text-slate-500">Evaluation Mode</span>
               <span className="font-bold text-indigo-700 flex items-center gap-1">
                 <ShieldCheck size={14} /> Trainer Manual Evaluation & Release
@@ -173,28 +173,28 @@ export default function StudentExamResultPage() {
   // Display official verified score card, teacher remarks & answers
   // -------------------------------------------------------------
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in py-4">
+    <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in py-2 sm:py-4">
       {/* Top Navigation */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <button
           onClick={() => router.push('/student/results')}
           className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-slate-900"
         >
           <ArrowLeft size={16} /> Back to Results Hub
         </button>
-        <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1.5">
-          <ShieldCheck size={14} className="text-emerald-600" /> Officially Published by Trainer Tushar
+        <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1.5 self-start sm:self-auto">
+          <ShieldCheck size={14} className="text-emerald-600 shrink-0" /> Officially Published
         </span>
       </div>
 
       {/* Hero Score Card */}
-      <ClayCard className="bg-gradient-to-r from-teal-900 via-teal-800 to-cyan-950 text-white p-6 sm:p-8 rounded-3xl shadow-xl shadow-teal-950/20 relative overflow-hidden">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-6 relative z-10">
+      <ClayCard className="bg-gradient-to-r from-teal-900 via-teal-800 to-cyan-950 text-white p-5 sm:p-8 rounded-3xl shadow-xl shadow-teal-950/20 relative overflow-hidden">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-5 sm:gap-6 relative z-10">
           <div className="text-center sm:text-left space-y-1">
             <span className="text-xs uppercase tracking-widest text-teal-300 font-bold">
               Official Examination Result
             </span>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+            <h1 className="text-xl sm:text-3xl font-black tracking-tight break-words">
               {exam.title}
             </h1>
             <p className="text-xs text-teal-200">
@@ -209,9 +209,9 @@ export default function StudentExamResultPage() {
             </p>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/20 text-center min-w-[160px]">
-            <span className="text-[11px] font-bold text-teal-200 uppercase tracking-wider block">Verified Score</span>
-            <span className="text-4xl font-black text-cyan-300 font-mono">
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-white/20 text-center min-w-[140px] sm:min-w-[160px]">
+            <span className="text-[10px] sm:text-[11px] font-bold text-teal-200 uppercase tracking-wider block">Verified Score</span>
+            <span className="text-3xl sm:text-4xl font-black text-cyan-300 font-mono">
               {attempt.total_score}
             </span>
             <span className="text-xs text-teal-200 font-bold block">/ {exam.max_marks} Points</span>
@@ -220,36 +220,36 @@ export default function StudentExamResultPage() {
 
         {/* Trainer Feedback Banner if provided */}
         {attempt.trainer_feedback && (
-          <div className="mt-5 pt-4 border-t border-white/15 text-xs text-teal-100 flex items-start gap-2 bg-white/5 rounded-xl p-3">
+          <div className="mt-4 sm:mt-5 pt-3.5 sm:pt-4 border-t border-white/15 text-xs text-teal-100 flex items-start gap-2 bg-white/5 rounded-xl p-3">
             <FileText size={16} className="text-teal-300 shrink-0 mt-0.5" />
-            <div>
+            <div className="min-w-0">
               <span className="font-bold text-white block">Trainer Remarks:</span>
-              <p className="text-teal-100 italic">{attempt.trainer_feedback}</p>
+              <p className="text-teal-100 italic break-words">{attempt.trainer_feedback}</p>
             </div>
           </div>
         )}
       </ClayCard>
 
       {/* Breakdown Metrics Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <ClayCard className="p-4 text-center">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4">
+        <ClayCard className="p-3 sm:p-4 text-center">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Percentage</span>
-          <p className="text-2xl font-black text-teal-700 mt-1">{attempt.percentage}%</p>
+          <p className="text-xl sm:text-2xl font-black text-teal-700 mt-1">{attempt.percentage}%</p>
         </ClayCard>
 
-        <ClayCard className="p-4 text-center">
-          <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Correct Answers</span>
-          <p className="text-2xl font-black text-emerald-700 mt-1">{attempt.total_correct ?? '-'}</p>
+        <ClayCard className="p-3 sm:p-4 text-center">
+          <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Correct</span>
+          <p className="text-xl sm:text-2xl font-black text-emerald-700 mt-1">{attempt.total_correct ?? '-'}</p>
         </ClayCard>
 
-        <ClayCard className="p-4 text-center">
-          <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider">Incorrect Answers</span>
-          <p className="text-2xl font-black text-rose-700 mt-1">{attempt.total_incorrect ?? '-'}</p>
+        <ClayCard className="p-3 sm:p-4 text-center">
+          <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider">Incorrect</span>
+          <p className="text-xl sm:text-2xl font-black text-rose-700 mt-1">{attempt.total_incorrect ?? '-'}</p>
         </ClayCard>
 
-        <ClayCard className="p-4 text-center">
+        <ClayCard className="p-3 sm:p-4 text-center">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Time Spent</span>
-          <p className="text-2xl font-black text-slate-800 mt-1 font-mono">
+          <p className="text-xl sm:text-2xl font-black text-slate-800 mt-1 font-mono">
             {Math.floor((attempt.time_spent_seconds || 0) / 60)}m {(attempt.time_spent_seconds || 0) % 60}s
           </p>
         </ClayCard>
