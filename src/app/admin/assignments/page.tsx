@@ -29,14 +29,18 @@ export default function AdminAssignmentsPage() {
     if (!window.confirm(`Are you sure you want to permanently delete "${title}"? All student submissions will also be removed.`)) {
       return;
     }
+    // Optimistic Update: Immediately remove from UI (0ms perceived latency)
+    const previous = assignments;
+    setAssignments(prev => prev.filter(a => a.id !== id));
+
     try {
       const res = await fetch(`/api/admin/assignments/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setAssignments(prev => prev.filter(a => a.id !== id));
-      } else {
+      if (!res.ok) {
+        setAssignments(previous);
         alert('Failed to delete assignment');
       }
     } catch {
+      setAssignments(previous);
       alert('Error deleting assignment');
     }
   };

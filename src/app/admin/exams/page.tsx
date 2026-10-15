@@ -28,14 +28,18 @@ export default function AdminExamsPage() {
     if (!window.confirm(`Are you sure you want to delete "${title}"? All attempts and student responses for this exam will also be removed.`)) {
       return;
     }
+    // Optimistic Update: Immediately remove from UI (0ms perceived latency)
+    const previous = exams;
+    setExams(prev => prev.filter(e => e.id !== id));
+
     try {
       const res = await fetch(`/api/admin/exams/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setExams(prev => prev.filter(e => e.id !== id));
-      } else {
+      if (!res.ok) {
+        setExams(previous);
         alert('Failed to delete exam');
       }
     } catch {
+      setExams(previous);
       alert('Error deleting exam');
     }
   };

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 
@@ -36,7 +36,14 @@ export async function PUT(
       return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
     }
 
-    await syncDatabaseToCloud();
+    after(async () => {
+      try {
+        await syncDatabaseToCloud();
+      } catch (err) {
+        console.warn('[CLOUD SYNC (after)]:', err);
+      }
+    });
+
     return NextResponse.json({ success: true, batch: updated });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error updating batch';
@@ -58,7 +65,14 @@ export async function DELETE(
       return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
     }
 
-    await syncDatabaseToCloud();
+    after(async () => {
+      try {
+        await syncDatabaseToCloud();
+      } catch (err) {
+        console.warn('[CLOUD SYNC (after)]:', err);
+      }
+    });
+
     return NextResponse.json({ success: true, message: 'Batch deleted successfully' });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error deleting batch';

@@ -112,31 +112,35 @@ export default function BatchesPage() {
 
   const handleDeleteBatch = async () => {
     if (!batchToDelete) return;
-    setIsDeleting(true);
+    const deletedId = batchToDelete.id;
+    const previousBatches = batches;
+    const previousSelected = selectedBatch;
+
+    // Optimistic Update: Immediately close modal and remove from UI
+    setBatchToDelete(null);
+    if (selectedBatch?.id === deletedId) {
+      setSelectedBatch(null);
+    }
+    const remaining = batches.filter(b => b.id !== deletedId);
+    setBatches(remaining);
+    if (remaining.length > 0 && selectedBatch?.id === deletedId) {
+      fetchBatchDetails(remaining[0].id);
+    }
 
     try {
-      const res = await fetch(`/api/admin/batches/${batchToDelete.id}`, {
+      const res = await fetch(`/api/admin/batches/${deletedId}`, {
         method: 'DELETE'
       });
-      if (res.ok) {
-        const deletedId = batchToDelete.id;
-        setBatchToDelete(null);
-        if (selectedBatch?.id === deletedId) {
-          setSelectedBatch(null);
-        }
-        const remaining = batches.filter(b => b.id !== deletedId);
-        setBatches(remaining);
-        if (remaining.length > 0) {
-          fetchBatchDetails(remaining[0].id);
-        }
-      } else {
+      if (!res.ok) {
+        setBatches(previousBatches);
+        setSelectedBatch(previousSelected);
         const data = await res.json();
         alert(data.error || 'Failed to delete batch');
       }
     } catch {
+      setBatches(previousBatches);
+      setSelectedBatch(previousSelected);
       alert('Error connecting to server. Please try again.');
-    } finally {
-      setIsDeleting(false);
     }
   };
 

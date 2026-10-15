@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 
@@ -45,7 +45,14 @@ export async function PUT(
       return NextResponse.json({ error: 'Student not found' }, { status: 404 });
     }
 
-    await syncDatabaseToCloud();
+    after(async () => {
+      try {
+        await syncDatabaseToCloud();
+      } catch (err) {
+        console.warn('[CLOUD SYNC (after)]:', err);
+      }
+    });
+
     return NextResponse.json({ success: true, student: updated });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error updating student';
@@ -67,7 +74,14 @@ export async function DELETE(
       return NextResponse.json({ error: 'Student not found or cannot be deleted' }, { status: 404 });
     }
 
-    await syncDatabaseToCloud();
+    after(async () => {
+      try {
+        await syncDatabaseToCloud();
+      } catch (err) {
+        console.warn('[CLOUD SYNC (after)]:', err);
+      }
+    });
+
     return NextResponse.json({ success: true, message: 'Student account permanently deleted' });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error deleting student';

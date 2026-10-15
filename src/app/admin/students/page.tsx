@@ -129,23 +129,25 @@ export default function StudentsPage() {
 
   const handleDeleteStudent = async () => {
     if (!studentToDelete) return;
-    setIsDeleting(true);
+    const toDeleteId = studentToDelete.id;
+    const previous = students;
+
+    // Optimistic Update: Close modal & remove from UI immediately
+    setStudentToDelete(null);
+    setStudents(prev => prev.filter(s => s.id !== toDeleteId));
 
     try {
-      const res = await fetch(`/api/admin/students/${studentToDelete.id}`, {
+      const res = await fetch(`/api/admin/students/${toDeleteId}`, {
         method: 'DELETE'
       });
-      if (res.ok) {
-        setStudentToDelete(null);
-        fetchData();
-      } else {
+      if (!res.ok) {
+        setStudents(previous);
         const data = await res.json();
         alert(data.error || 'Failed to delete student');
       }
     } catch {
+      setStudents(previous);
       alert('Error connecting to server. Please try again.');
-    } finally {
-      setIsDeleting(false);
     }
   };
 
