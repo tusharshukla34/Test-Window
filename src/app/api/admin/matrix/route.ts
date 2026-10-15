@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { dbService } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady } from '@/lib/db/database';
 
 export async function GET(req: NextRequest) {
   try {
     await requireAdmin();
+    await ensureCloudSyncReady();
     const { searchParams } = new URL(req.url);
     const batch_id = searchParams.get('batch_id') || undefined;
     const format = searchParams.get('format');

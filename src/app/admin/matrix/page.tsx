@@ -9,7 +9,8 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
-  HelpCircle
+  HelpCircle,
+  RefreshCw
 } from 'lucide-react';
 import { ClayCard, ClayButton } from '@/components/ui/ClayComponents';
 import { Batch, Assignment, MatrixStudentRow } from '@/lib/db/types';
@@ -23,8 +24,11 @@ export default function AssignmentMatrixPage() {
     summary: { total_expected: number; submitted: number; evaluated: number; pending: number; overdue: number };
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchMatrix = async () => {
+    setLoading(true);
+    setError(null);
     try {
       const url = selectedBatch ? `/api/admin/matrix?batch_id=${selectedBatch}` : '/api/admin/matrix';
       const [resMatrix, resBatches] = await Promise.all([
@@ -32,13 +36,28 @@ export default function AssignmentMatrixPage() {
         fetch('/api/admin/batches')
       ]);
 
-      const mData = await resMatrix.json();
-      const bData = await resBatches.json();
+      if (resMatrix.ok) {
+        const mData = await resMatrix.json();
+        if (mData && !mData.error && mData.summary && Array.isArray(mData.assignments)) {
+          setMatrixData(mData);
+        } else if (mData?.error) {
+          setError(mData.error);
+        }
+      } else {
+        setError('Failed to load matrix data from server.');
+      }
 
-      setMatrixData(mData);
-      setBatches(bData);
-    } catch {}
-    setLoading(false);
+      if (resBatches.ok) {
+        const bData = await resBatches.json();
+        if (Array.isArray(bData)) {
+          setBatches(bData);
+        }
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error connecting to server');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -90,6 +109,31 @@ export default function AssignmentMatrixPage() {
     }
   };
 
+  if (loading && !matrixData) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-3">
+        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-xs text-slate-500 font-medium">Loading classroom matrix data...</p>
+      </div>
+    );
+  }
+
+  if (error && !matrixData) {
+    return (
+      <ClayCard className="p-8 text-center max-w-lg mx-auto my-12 space-y-4">
+        <AlertCircle size={36} className="text-rose-500 mx-auto" />
+        <h3 className="text-base font-bold text-slate-800">Failed to Load Monitoring Matrix</h3>
+        <p className="text-xs text-slate-500">{error}</p>
+        <button
+          onClick={fetchMatrix}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-700 transition"
+        >
+          <RefreshCw size={14} /> Try Again
+        </button>
+      </ClayCard>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -106,13 +150,14 @@ export default function AssignmentMatrixPage() {
           variant="teal"
           onClick={handleExportCSV}
           className="shadow-sm"
+          disabled={!matrixData || matrixData.rows.length === 0}
         >
           <Download size={16} /> Export Matrix to CSV
         </ClayButton>
       </div>
 
       {/* Summary Cards */}
-      {matrixData && (
+      {matrixData?.summary && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <ClayCard className="p-3 text-center">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Expected</span>
@@ -154,7 +199,7 @@ export default function AssignmentMatrixPage() {
           </select>
         </div>
         <div className="text-xs text-slate-500 font-medium hidden sm:block">
-          Showing {matrixData?.rows.length || 0} students across {matrixData?.assignments.length || 0} assignments
+          Showing {matrixData?.rows?.length || 0} students across {matrixData?.assignments?.length || 0} assignments
         </div>
       </ClayCard>
 
@@ -170,7 +215,7 @@ export default function AssignmentMatrixPage() {
                 <th className="p-3.5 min-w-[120px] border-r border-slate-200">
                   Batch
                 </th>
-                {matrixData?.assignments.map(asg => (
+                {matrixData?.assignments?.map(asg => (
                   <th key={asg.id} className="p-3.5 min-w-[170px] text-center border-r border-slate-200">
                     <div className="font-extrabold text-slate-900 truncate" title={asg.title}>{asg.title}</div>
                     <div className="text-[9px] font-normal text-slate-500 font-mono">Max {asg.max_score} pts</div>
@@ -179,26 +224,37 @@ export default function AssignmentMatrixPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {matrixData?.rows.map((row, idx) => (
-                <tr key={row.student.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                  {/* Sticky Student Column */}
-                  <td className="p-3.5 sticky left-0 bg-white font-semibold text-slate-900 border-r border-slate-200 shadow-xs z-10">
-                    <div>{row.student.name}</div>
-                    <div className="text-[10px] font-mono text-indigo-600 font-bold">{row.student.student_id}</div>
+              {(!matrixData?.rows || matrixData.rows.length === 0) ? (
+                <tr>
+                  <td
+                    colSpan={(matrixData?.assignments?.length || 0) + 2}
+                    className="p-12 text-center text-slate-400 text-xs"
+                  >
+                    No students or assignments found in this cohort view.
                   </td>
-                  <td className="p-3.5 text-slate-600 text-[11px] border-r border-slate-200">
-                    {row.batch_names.join(', ')}
-                  </td>
-                  {matrixData.assignments.map(asg => {
-                    const cell = row.assignments[asg.id] || { status: 'Not Assigned' };
-                    return (
-                      <td key={asg.id} className="p-3.5 text-center border-r border-slate-100">
-                        {getStatusBadge(cell)}
-                      </td>
-                    );
-                  })}
                 </tr>
-              ))}
+              ) : (
+                matrixData.rows.map((row, idx) => (
+                  <tr key={row.student.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                    {/* Sticky Student Column */}
+                    <td className="p-3.5 sticky left-0 bg-white font-semibold text-slate-900 border-r border-slate-200 shadow-xs z-10">
+                      <div>{row.student.name}</div>
+                      <div className="text-[10px] font-mono text-indigo-600 font-bold">{row.student.student_id}</div>
+                    </td>
+                    <td className="p-3.5 text-slate-600 text-[11px] border-r border-slate-200">
+                      {row.batch_names.join(', ')}
+                    </td>
+                    {matrixData.assignments.map(asg => {
+                      const cell = row.assignments?.[asg.id] || { status: 'Not Assigned' };
+                      return (
+                        <td key={asg.id} className="p-3.5 text-center border-r border-slate-100">
+                          {getStatusBadge(cell)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

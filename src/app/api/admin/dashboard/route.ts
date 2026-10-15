@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { dbService } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady } from '@/lib/db/database';
 
 export async function GET() {
   try {
     await requireAdmin();
+    await ensureCloudSyncReady();
     const stats = dbService.getAdminDashboardStats();
     return NextResponse.json(stats);
   } catch (err: unknown) {
