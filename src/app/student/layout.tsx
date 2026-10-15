@@ -11,7 +11,8 @@ import {
   LogOut,
   GraduationCap,
   Menu,
-  X
+  X,
+  Layers
 } from 'lucide-react';
 
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
@@ -50,6 +51,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 
   const navItems = [
     { label: 'My Dashboard', href: '/student/dashboard', icon: LayoutDashboard },
+    { label: 'My Batches', href: '/student/batches', icon: Layers },
     { label: 'Daily Homework', href: '/student/assignments', icon: BookOpen },
     { label: 'Online Examinations', href: '/student/exams', icon: FileCheck2 },
     { label: 'My Results', href: '/student/results', icon: Award },
