@@ -16,12 +16,17 @@ import {
 import { ClayCard, ClayButton, Modal } from '@/components/ui/ClayComponents';
 import { Exam, Batch, QuestionBankItem } from '@/lib/db/types';
 
+// Module-level in-memory cache for instant 0ms restoration
+let cachedExams: (Exam & { recipient_batch_names: string[]; attempt_count: number })[] | null = null;
+let cachedBatches: Batch[] | null = null;
+let cachedQuestions: QuestionBankItem[] | null = null;
+
 export default function AdminExamsPage() {
   const router = useRouter();
-  const [exams, setExams] = useState<(Exam & { recipient_batch_names: string[]; attempt_count: number })[]>([]);
-  const [batches, setBatches] = useState<Batch[]>([]);
-  const [questions, setQuestions] = useState<QuestionBankItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [exams, setExams] = useState<(Exam & { recipient_batch_names: string[]; attempt_count: number })[]>(() => cachedExams || []);
+  const [batches, setBatches] = useState<Batch[]>(() => cachedBatches || []);
+  const [questions, setQuestions] = useState<QuestionBankItem[]>(() => cachedQuestions || []);
+  const [loading, setLoading] = useState(() => !cachedExams);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   const handleDeleteExam = async (id: string, title: string) => {
@@ -30,16 +35,22 @@ export default function AdminExamsPage() {
     }
     // Optimistic Update: Immediately remove from UI (0ms perceived latency)
     const previous = exams;
-    setExams(prev => prev.filter(e => e.id !== id));
+    setExams(prev => {
+      const updated = prev.filter(e => e.id !== id);
+      cachedExams = updated;
+      return updated;
+    });
 
     try {
       const res = await fetch(`/api/admin/exams/${id}`, { method: 'DELETE' });
       if (!res.ok) {
         setExams(previous);
+        cachedExams = previous;
         alert('Failed to delete exam');
       }
     } catch {
       setExams(previous);
+      cachedExams = previous;
       alert('Error deleting exam');
     }
   };
@@ -65,11 +76,21 @@ export default function AdminExamsPage() {
       const batchesData = await resBatches.json();
       const questionsData = await resQuestions.json();
 
-      setExams(examsData);
-      setBatches(batchesData);
-      setQuestions(questionsData);
-    } catch {}
-    setLoading(false);
+      if (Array.isArray(examsData)) {
+        cachedExams = examsData;
+        setExams(examsData);
+      }
+      if (Array.isArray(batchesData)) {
+        cachedBatches = batchesData;
+        setBatches(batchesData);
+      }
+      if (Array.isArray(questionsData)) {
+        cachedQuestions = questionsData;
+        setQuestions(questionsData);
+      }
+    } catch {} finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {

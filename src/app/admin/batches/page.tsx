@@ -5,11 +5,16 @@ import { Users, Plus, Search, UserPlus, Trash2, ArrowRight } from 'lucide-react'
 import { ClayCard, ClayButton, Modal } from '@/components/ui/ClayComponents';
 import { Batch, UserProfile } from '@/lib/db/types';
 
+// Module-level in-memory cache for instant 0ms restoration
+let cachedBatchesList: (Batch & { student_count: number })[] | null = null;
+let cachedSelectedBatch: (Batch & { students: UserProfile[] }) | null = null;
+let cachedAllStudents: UserProfile[] | null = null;
+
 export default function BatchesPage() {
-  const [batches, setBatches] = useState<(Batch & { student_count: number })[]>([]);
-  const [selectedBatch, setSelectedBatch] = useState<(Batch & { students: UserProfile[] }) | null>(null);
-  const [allStudents, setAllStudents] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [batches, setBatches] = useState<(Batch & { student_count: number })[]>(() => cachedBatchesList || []);
+  const [selectedBatch, setSelectedBatch] = useState<(Batch & { students: UserProfile[] }) | null>(() => cachedSelectedBatch || null);
+  const [allStudents, setAllStudents] = useState<UserProfile[]>(() => cachedAllStudents || []);
+  const [loading, setLoading] = useState<boolean>(() => !cachedBatchesList);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
 
@@ -29,19 +34,26 @@ export default function BatchesPage() {
     try {
       const res = await fetch('/api/admin/batches');
       const data = await res.json();
-      setBatches(data);
-      if (data.length > 0 && !selectedBatch) {
-        fetchBatchDetails(data[0].id);
+      if (Array.isArray(data)) {
+        cachedBatchesList = data;
+        setBatches(data);
+        if (data.length > 0 && !selectedBatch && !cachedSelectedBatch) {
+          fetchBatchDetails(data[0].id);
+        }
       }
-    } catch {}
-    setLoading(false);
+    } catch {} finally {
+      setLoading(false);
+    }
   };
 
   const fetchBatchDetails = async (id: string) => {
     try {
       const res = await fetch(`/api/admin/batches/${id}`);
       const data = await res.json();
-      setSelectedBatch(data);
+      if (data && !data.error) {
+        cachedSelectedBatch = data;
+        setSelectedBatch(data);
+      }
     } catch {}
   };
 
@@ -49,7 +61,10 @@ export default function BatchesPage() {
     try {
       const res = await fetch('/api/admin/students');
       const data = await res.json();
-      setAllStudents(data);
+      if (Array.isArray(data)) {
+        cachedAllStudents = data;
+        setAllStudents(data);
+      }
     } catch {}
   };
 
@@ -122,6 +137,7 @@ export default function BatchesPage() {
       setSelectedBatch(null);
     }
     const remaining = batches.filter(b => b.id !== deletedId);
+    cachedBatchesList = remaining;
     setBatches(remaining);
     if (remaining.length > 0 && selectedBatch?.id === deletedId) {
       fetchBatchDetails(remaining[0].id);

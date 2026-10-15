@@ -16,9 +16,14 @@ import {
 import { ClayCard, ClayButton, Modal } from '@/components/ui/ClayComponents';
 import { UserProfile, Batch } from '@/lib/db/types';
 
+// Module-level in-memory cache for instant 0ms restoration when navigating back
+let cachedStudents: (UserProfile & { batches: string[] })[] | null = null;
+let cachedBatches: Batch[] | null = null;
+
 export default function StudentsPage() {
-  const [students, setStudents] = useState<(UserProfile & { batches: string[] })[]>([]);
-  const [batches, setBatches] = useState<Batch[]>([]);
+  const [students, setStudents] = useState<(UserProfile & { batches: string[] })[]>(() => cachedStudents || []);
+  const [batches, setBatches] = useState<Batch[]>(() => cachedBatches || []);
+  const [loading, setLoading] = useState<boolean>(() => !cachedStudents);
   const [search, setSearch] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isResetOpen, setIsResetOpen] = useState(false);
@@ -47,9 +52,17 @@ export default function StudentsPage() {
       ]);
       const stuData = await resStu.json();
       const batchData = await resBatches.json();
-      setStudents(stuData);
-      setBatches(batchData);
-    } catch {}
+      if (Array.isArray(stuData)) {
+        cachedStudents = stuData;
+        setStudents(stuData);
+      }
+      if (Array.isArray(batchData)) {
+        cachedBatches = batchData;
+        setBatches(batchData);
+      }
+    } catch {} finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -134,7 +147,11 @@ export default function StudentsPage() {
 
     // Optimistic Update: Close modal & remove from UI immediately
     setStudentToDelete(null);
-    setStudents(prev => prev.filter(s => s.id !== toDeleteId));
+    setStudents(prev => {
+      const updated = prev.filter(s => s.id !== toDeleteId);
+      cachedStudents = updated;
+      return updated;
+    });
 
     try {
       const res = await fetch(`/api/admin/students/${toDeleteId}`, {
@@ -142,11 +159,13 @@ export default function StudentsPage() {
       });
       if (!res.ok) {
         setStudents(previous);
+        cachedStudents = previous;
         const data = await res.json();
         alert(data.error || 'Failed to delete student');
       }
     } catch {
       setStudents(previous);
+      cachedStudents = previous;
       alert('Error connecting to server. Please try again.');
     }
   };
@@ -213,10 +232,22 @@ export default function StudentsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredStudents.length === 0 ? (
+              {loading && students.length === 0 ? (
+                // Smooth skeleton rows while initial fetch is loading
+                Array.from({ length: 4 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="p-3"><div className="h-4 bg-slate-200/80 rounded w-28"></div></td>
+                    <td className="p-3"><div className="h-4 bg-slate-200/80 rounded w-36"></div></td>
+                    <td className="p-3"><div className="h-4 bg-slate-200/80 rounded w-44"></div></td>
+                    <td className="p-3"><div className="h-4 bg-slate-200/80 rounded w-24"></div></td>
+                    <td className="p-3"><div className="h-4 bg-slate-200/80 rounded w-16"></div></td>
+                    <td className="p-3 text-right"><div className="h-4 bg-slate-200/80 rounded w-28 ml-auto"></div></td>
+                  </tr>
+                ))
+              ) : filteredStudents.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="p-8 text-center text-slate-400">
-                    No matching students found.
+                    {search ? `No students matching "${search}"` : 'No students enrolled yet. Click "Enroll New Student" to get started.'}
                   </td>
                 </tr>
               ) : (
