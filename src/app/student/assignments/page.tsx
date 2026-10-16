@@ -32,10 +32,11 @@ export default function StudentAssignmentsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successModalData, setSuccessModalData] = useState<{ title: string; maxScore: number } | null>(null);
 
   const fetchAssignments = async () => {
     try {
-      const res = await fetch('/api/student/assignments');
+      const res = await fetch(`/api/student/assignments?_t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
       if (Array.isArray(data)) {
         setAssignments(data);
@@ -116,7 +117,39 @@ export default function StudentAssignmentsPage() {
         throw new Error(submitData.error || 'Submission failed');
       }
 
-      setSubmitSuccess(true);
+      const submittedTitle = selectedAsg.title;
+      const submittedMaxScore = selectedAsg.max_score;
+      const submittedAsgId = selectedAsg.id;
+
+      // 1. Immediately close the assignment submission window
+      setSelectedAsg(null);
+      setTextResponse('');
+      setSelectedFile(null);
+      setSubmitSuccess(false);
+
+      // 2. Open the dedicated small success confirmation pop-up
+      setSuccessModalData({
+        title: submittedTitle,
+        maxScore: submittedMaxScore
+      });
+
+      // 3. Optimistic update in assignments list
+      if (submitData.submission) {
+        setAssignments(prev => {
+          const updated = prev.map(a => {
+            if (a.id === submittedAsgId) {
+              return {
+                ...a,
+                submission: submitData.submission
+              };
+            }
+            return a;
+          });
+          cachedStudentAssignments = updated;
+          return updated;
+        });
+      }
+
       fetchAssignments();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error submitting homework');
@@ -391,6 +424,45 @@ export default function StudentAssignmentsPage() {
             </div>
           </form>
         )}
+      </Modal>
+
+      {/* Small Success Confirmation Pop-up Modal */}
+      <Modal
+        isOpen={Boolean(successModalData)}
+        onClose={() => setSuccessModalData(null)}
+        title="Submission Received"
+        maxWidth="max-w-md"
+      >
+        <div className="text-center py-4 px-2 space-y-4">
+          <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner ring-8 ring-emerald-50">
+            <CheckCircle2 size={36} className="stroke-[2.5]" />
+          </div>
+
+          <div className="space-y-1.5">
+            <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
+              Homework Submitted Successfully!
+            </h3>
+            {successModalData && (
+              <p className="text-xs font-bold text-teal-800 bg-teal-50 border border-teal-200/80 px-3 py-1 rounded-full inline-block">
+                {successModalData.title}
+              </p>
+            )}
+            <p className="text-xs text-slate-500 max-w-sm mx-auto pt-1 leading-relaxed">
+              Your solution has been submitted and is now in <strong className="text-slate-700">Trainer Shukla&apos;s</strong> evaluation queue.
+            </p>
+          </div>
+
+          <div className="pt-2">
+            <ClayButton
+              variant="teal"
+              size="md"
+              onClick={() => setSuccessModalData(null)}
+              className="w-full justify-center shadow-md font-bold text-xs"
+            >
+              OK, Got It!
+            </ClayButton>
+          </div>
+        </div>
       </Modal>
     </div>
   );
