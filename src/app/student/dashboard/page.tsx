@@ -60,10 +60,15 @@ let cachedStudentDashboard: StudentDashboardData | null = null;
 
 export default function StudentDashboardPage() {
   const router = useRouter();
-  const [data, setData] = useState<StudentDashboardData | null>(cachedStudentDashboard);
-  const [loading, setLoading] = useState(!cachedStudentDashboard);
+  const [data, setData] = useState<StudentDashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (cachedStudentDashboard) {
+      setData(cachedStudentDashboard);
+      setLoading(false);
+    }
+
     fetch('/api/student/dashboard')
       .then(res => res.json())
       .then(d => {

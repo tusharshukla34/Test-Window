@@ -31,20 +31,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
-  const [user, setUser] = useState<StudentUser | null>(() => {
-    if (cachedStudentUser) return cachedStudentUser;
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('cybrom_student_user');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          cachedStudentUser = parsed;
-          return parsed;
-        }
-      } catch {}
-    }
-    return null;
-  });
+  const [user, setUser] = useState<StudentUser | null>(null);
   const [notifications, setNotifications] = useState<{ id: string; title: string; message: string; is_read: boolean }[]>([]);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -54,6 +41,20 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
   const isExamAttempt = pathname.includes('/attempt');
 
   useEffect(() => {
+    // Restore cached student profile on client side safely after hydration
+    if (cachedStudentUser) {
+      setUser(cachedStudentUser);
+    } else {
+      try {
+        const saved = localStorage.getItem('cybrom_student_user');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          cachedStudentUser = parsed;
+          setUser(parsed);
+        }
+      } catch {}
+    }
+
     fetch('/api/auth/me')
       .then(res => res.json())
       .then(data => {
