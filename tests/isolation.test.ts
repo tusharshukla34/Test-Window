@@ -175,7 +175,7 @@ describe('Cohort Batch-Isolation and Security Rules', () => {
     expect(dbService.deleteStudent(tempStudent.id)).toBe(false);
 
     // Admin user cannot be deleted via deleteStudent
-    const adminUser = dbService.getUserByEmail('tushar@cybrom.com');
+    const adminUser = dbService.getUserByEmail('tushar@portal.edu') || dbService.getUserById('usr-admin-tushar');
     if (adminUser) {
       expect(dbService.deleteStudent(adminUser.id)).toBe(false);
     }

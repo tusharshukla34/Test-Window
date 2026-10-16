@@ -456,7 +456,7 @@ export default function AdminBackupPage() {
                   Connected Google Spreadsheet
                 </span>
                 <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">
-                  {sheetTitle || 'Cybrom Portal – Live Backup & Exam Results'}
+                  {sheetTitle || 'Academic Portal – Live Backup & Exam Results'}
                 </h4>
               </div>
             </div>

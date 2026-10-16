@@ -122,7 +122,7 @@ export default function LoginPage() {
                   type="text"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder={roleTab === 'admin' ? 'Tushar1234 or tushar@cybrom.com' : 'STU-2026-001'}
+                  placeholder={roleTab === 'admin' ? 'Tushar1234 or your email' : 'STU-2026-001'}
                   required
                   className="clay-input w-full pl-9 pr-3 py-2.5 text-sm text-slate-800"
                 />

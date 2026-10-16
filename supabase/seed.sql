@@ -9,7 +9,7 @@
 -- Hash: $2a$10$wTfZ4kZlP7Y37mZf346CGu9.Q4sN9QzG3Q2.1F.4bJbQ1b2q1w8C2 (or standard test hash)
 
 INSERT INTO profiles (id, student_id, name, email, password_hash, role, status) VALUES
-  ('a0000000-0000-0000-0000-000000000001', NULL, 'Tushar Shukla', 'tushar@cybrom.com', '$2a$10$2S7z2C9c7vJb7R1O6uR1Xe2nQfHhV2ZkJ7N1R0xS4L5c7kKjM9Pae', 'admin', 'active'),
+  ('a0000000-0000-0000-0000-000000000001', NULL, 'Tushar Shukla', 'tushar@portal.edu', '$2a$10$2S7z2C9c7vJb7R1O6uR1Xe2nQfHhV2ZkJ7N1R0xS4L5c7kKjM9Pae', 'admin', 'active'),
   ('s0000000-0000-0000-0000-000000000001', 'STU-2026-001', 'Rahul Verma', 'rahul.verma@example.com', '$2a$10$2S7z2C9c7vJb7R1O6uR1Xe2nQfHhV2ZkJ7N1R0xS4L5c7kKjM9Pae', 'student', 'active'),
   ('s0000000-0000-0000-0000-000000000002', 'STU-2026-002', 'Priya Sharma', 'priya.sharma@example.com', '$2a$10$2S7z2C9c7vJb7R1O6uR1Xe2nQfHhV2ZkJ7N1R0xS4L5c7kKjM9Pae', 'student', 'active'),
   ('s0000000-0000-0000-0000-000000000003', 'STU-2026-003', 'Amit Patel', 'amit.patel@example.com', '$2a$10$2S7z2C9c7vJb7R1O6uR1Xe2nQfHhV2ZkJ7N1R0xS4L5c7kKjM9Pae', 'student', 'active'),

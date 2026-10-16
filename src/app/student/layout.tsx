@@ -46,7 +46,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
       setUser(cachedStudentUser);
     } else {
       try {
-        const saved = localStorage.getItem('cybrom_student_user');
+        const saved = localStorage.getItem('student_portal_user');
         if (saved) {
           const parsed = JSON.parse(saved);
           cachedStudentUser = parsed;
@@ -62,7 +62,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
           setUser(data.user);
           cachedStudentUser = data.user;
           try {
-            localStorage.setItem('cybrom_student_user', JSON.stringify(data.user));
+            localStorage.setItem('student_portal_user', JSON.stringify(data.user));
           } catch {}
         }
       })
@@ -110,7 +110,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
   const handleLogout = async () => {
     cachedStudentUser = null;
     try {
-      localStorage.removeItem('cybrom_student_user');
+      localStorage.removeItem('student_portal_user');
     } catch {}
     await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/login');

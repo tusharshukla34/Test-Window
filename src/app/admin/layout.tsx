@@ -42,6 +42,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: 'Exam Evaluations', href: '/admin/exam-evaluations', icon: ClipboardCheck },
   ];
 
+  const [adminUser, setAdminUser] = useState<{ name?: string; email?: string } | null>(null);
+
   useEffect(() => {
     fetch('/api/auth/me')
       .then(res => {
@@ -54,6 +56,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .then(data => {
         if (!data || !data.authenticated || data.user?.role !== 'admin') {
           router.push('/login');
+        } else {
+          setAdminUser(data.user);
         }
       })
       .catch(() => {
@@ -194,8 +198,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="pt-4 border-t border-slate-100">
           <div className="bg-slate-50 rounded-xl p-3 mb-3 border border-slate-100 flex items-center justify-between">
             <div className="overflow-hidden">
-              <p className="text-xs font-bold text-slate-800 truncate">Tushar Shukla</p>
-              <p className="text-[11px] text-slate-500 truncate">tushar@cybrom.com</p>
+              <p className="text-xs font-bold text-slate-800 truncate">{adminUser?.name || 'Tushar Shukla'}</p>
+              <p className="text-[11px] text-slate-500 truncate">{adminUser?.email || 'Instructor & Administrator'}</p>
             </div>
             <span className="w-2 h-2 rounded-full bg-emerald-500" title="Active"></span>
           </div>

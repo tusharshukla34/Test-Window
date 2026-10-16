@@ -70,7 +70,7 @@ The database automatically initializes upon first start with the following demon
 
 ### Trainer / Administrator
 - **Admin ID**: `Tushar1234`
-- **Email**: `tushar@cybrom.com`
+- **Email**: `tushar@portal.edu`
 - **Password**: `Tushar@0963`
 - **Role**: Admin / Trainer
 
@@ -187,7 +187,7 @@ If connecting to a Supabase project (hosted or local via Supabase CLI):
 
 2. **Apply SQL Migration**:
    Navigate to the SQL Editor in your Supabase dashboard and run the migration file:
-   [supabase/migrations/20261014000000_schema_and_rls.sql](file:///c:/Users/HP/Desktop/Cybrom%20work/Projects/Test%20Window/supabase/migrations/20261014000000_schema_and_rls.sql)
+   `supabase/migrations/20261014000000_schema_and_rls.sql`
 
    This script creates all tables, foreign keys, triggers, and comprehensive **Row Level Security (RLS)** policies for:
    - Student read isolation (`auth.uid() = student_id`)
@@ -197,7 +197,7 @@ If connecting to a Supabase project (hosted or local via Supabase CLI):
 
 3. **Seed Demonstration Data (Optional)**:
    Run the seed script in the SQL editor:
-   [supabase/seed.sql](file:///c:/Users/HP/Desktop/Cybrom%20work/Projects/Test%20Window/supabase/seed.sql)
+   `supabase/seed.sql`
 
 4. **Configure Private Storage Buckets**:
    In the Supabase Storage console:
@@ -218,7 +218,7 @@ If connecting to a Supabase project (hosted or local via Supabase CLI):
 ## 9. Creating Additional Administrators
 
 To create an additional administrator account or reset the Trainer password:
-- The initial administrator is seeded as `tushar@cybrom.com`.
+- The initial administrator is seeded as `tushar@portal.edu`.
 - To provision a new administrator via script, use `src/lib/db/database.ts` or call `dbService.createStudent` with role `'admin'`.
 - All password updates utilize 12-round bcrypt hashing.
 

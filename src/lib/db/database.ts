@@ -381,7 +381,7 @@ function initSchema() {
       UPDATE profiles 
       SET student_id = 'Tushar1234', 
           password_hash = ?
-      WHERE role = 'admin' AND (email = 'tushar@cybrom.com' OR id = 'usr-admin-tushar')
+      WHERE role = 'admin' AND (id = 'usr-admin-tushar' OR role = 'admin')
     `).run(adminPassHash);
   } catch {}
 }
@@ -407,7 +407,7 @@ function seedInitialData() {
     'usr-admin-tushar',
     'Tushar1234',
     'Tushar Shukla',
-    'tushar@cybrom.com',
+    'tushar@portal.edu',
     adminPasswordHash,
     'admin',
     'active'
@@ -418,7 +418,7 @@ function seedInitialData() {
     'usr-student-demo-01',
     'STU-2026-001',
     'Aarav Sharma',
-    'student@cybrom.com',
+    'student@portal.edu',
     defaultPasswordHash,
     'student',
     'active'

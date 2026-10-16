@@ -75,7 +75,7 @@ function buildHtmlEmail({
                 ${heading}
               </h1>
               <p style="margin: 6px 0 0 0; color: #ccfbf1; font-size: 13px;">
-                Tushar Shukla • Cybrom Classroom Portal
+                Tushar Shukla • Academic Workspace
               </p>
             </td>
           </tr>
@@ -105,7 +105,7 @@ function buildHtmlEmail({
           <tr>
             <td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 28px; text-align: center;">
               <p style="margin: 0; font-size: 11px; color: #94a3b8; font-weight: 600;">
-                Cybrom Technology Academic Portal • Real-Time Notification System
+                Tushar Shukla Academic Portal • Real-Time Notification System
               </p>
             </td>
           </tr>

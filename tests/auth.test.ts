@@ -20,7 +20,7 @@ describe('Authentication & Password Security', () => {
     const payload = {
       userId: 'usr-admin-tushar',
       role: 'admin' as const,
-      email: 'tushar@cybrom.com',
+      email: 'tushar@portal.edu',
       name: 'Tushar Shukla',
       studentId: null
     };
