@@ -28,7 +28,7 @@ export default function QuestionBankPage() {
 
   const fetchQuestions = async () => {
     try {
-      const res = await fetch('/api/admin/question-bank');
+      const res = await fetch(`/api/admin/question-bank?_t=${Date.now()}`, { cache: 'no-store' });
       if (res.status === 401 || res.status === 403) {
         window.location.href = '/login';
         return;
@@ -76,7 +76,12 @@ export default function QuestionBankPage() {
         })
       });
 
-      if (!res.ok) throw new Error('Failed to create question');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create question');
+
+      if (data.question) {
+        setQuestions(prev => [data.question, ...prev]);
+      }
 
       setIsAddOpen(false);
       setQuestionText('');
@@ -93,10 +98,21 @@ export default function QuestionBankPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this question?')) return;
+    const previous = questions;
+    setQuestions(prev => prev.filter(q => q.id !== id));
+
     try {
-      await fetch(`/api/admin/question-bank/${id}`, { method: 'DELETE' });
-      fetchQuestions();
-    } catch {}
+      const res = await fetch(`/api/admin/question-bank/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        setQuestions(previous);
+        alert('Failed to delete question');
+      } else {
+        fetchQuestions();
+      }
+    } catch {
+      setQuestions(previous);
+      alert('Error connecting to server. Please try again.');
+    }
   };
 
   const filtered = questions.filter(q =>

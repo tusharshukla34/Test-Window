@@ -2,12 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET() {
   try {
     await requireAdmin();
     await ensureCloudSyncReady();
     const questions = dbService.getAllQuestions();
-    return NextResponse.json(questions);
+    return NextResponse.json(questions, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      },
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to fetch question bank';
     return NextResponse.json({ error: message }, { status: 403 });

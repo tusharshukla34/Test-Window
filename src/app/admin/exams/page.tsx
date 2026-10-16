@@ -67,9 +67,9 @@ export default function AdminExamsPage() {
   const fetchData = async () => {
     try {
       const [resExams, resBatches, resQuestions] = await Promise.all([
-        fetch('/api/admin/exams'),
-        fetch('/api/admin/batches'),
-        fetch('/api/admin/question-bank')
+        fetch(`/api/admin/exams?_t=${Date.now()}`, { cache: 'no-store' }),
+        fetch(`/api/admin/batches?_t=${Date.now()}`, { cache: 'no-store' }),
+        fetch(`/api/admin/question-bank?_t=${Date.now()}`, { cache: 'no-store' })
       ]);
 
       if (resExams.status === 401 || resExams.status === 403 || resBatches.status === 401 || resBatches.status === 403) {
@@ -128,7 +128,23 @@ export default function AdminExamsPage() {
         })
       });
 
-      if (!res.ok) throw new Error('Failed to create examination');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create examination');
+
+      if (data.exam) {
+        const batchMap = new Map(batches.map(b => [b.id, b.name]));
+        const bNames = (selectedBatchIds || []).map(id => batchMap.get(id) || id);
+        const newExamItem = {
+          ...data.exam,
+          recipient_batch_names: bNames,
+          attempt_count: 0
+        };
+        setExams(prev => {
+          const updated = [newExamItem, ...prev];
+          cachedExams = updated;
+          return updated;
+        });
+      }
 
       setIsCreateOpen(false);
       setTitle('');

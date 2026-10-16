@@ -32,7 +32,7 @@ export default function BatchesPage() {
 
   const fetchBatches = async () => {
     try {
-      const res = await fetch('/api/admin/batches');
+      const res = await fetch(`/api/admin/batches?_t=${Date.now()}`, { cache: 'no-store' });
       if (res.status === 401 || res.status === 403) {
         window.location.href = '/login';
         return;
@@ -52,7 +52,7 @@ export default function BatchesPage() {
 
   const fetchBatchDetails = async (id: string) => {
     try {
-      const res = await fetch(`/api/admin/batches/${id}`);
+      const res = await fetch(`/api/admin/batches/${id}?_t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
       if (data && !data.error) {
         cachedSelectedBatch = data;
@@ -63,7 +63,7 @@ export default function BatchesPage() {
 
   const fetchAllStudents = async () => {
     try {
-      const res = await fetch('/api/admin/students');
+      const res = await fetch(`/api/admin/students?_t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
       if (Array.isArray(data)) {
         cachedAllStudents = data;
@@ -88,6 +88,18 @@ export default function BatchesPage() {
         body: JSON.stringify({ name: newBatchName, description: newBatchDesc })
       });
       if (res.ok) {
+        const data = await res.json();
+        if (data.batch) {
+          const newBatchItem = { ...data.batch, student_count: 0 };
+          setBatches(prev => {
+            const updated = [newBatchItem, ...prev];
+            cachedBatchesList = updated;
+            return updated;
+          });
+          if (!selectedBatch) {
+            setSelectedBatch({ ...newBatchItem, students: [] });
+          }
+        }
         setIsCreateOpen(false);
         setNewBatchName('');
         setNewBatchDesc('');
@@ -98,6 +110,15 @@ export default function BatchesPage() {
 
   const handleAddStudentToBatch = async () => {
     if (!selectedBatch || !selectedStudentId) return;
+
+    const studentObj = allStudents.find(s => s.id === selectedStudentId);
+    if (studentObj) {
+      setSelectedBatch(prev => prev ? {
+        ...prev,
+        students: [...prev.students, studentObj]
+      } : null);
+      setBatches(prev => prev.map(b => b.id === selectedBatch.id ? { ...b, student_count: b.student_count + 1 } : b));
+    }
 
     try {
       const res = await fetch(`/api/admin/batches/${selectedBatch.id}/students`, {
@@ -117,6 +138,13 @@ export default function BatchesPage() {
   const handleRemoveStudent = async (studentId: string) => {
     if (!selectedBatch) return;
     if (!confirm('Are you sure you want to remove this student from the batch?')) return;
+
+    // Optimistic remove
+    setSelectedBatch(prev => prev ? {
+      ...prev,
+      students: prev.students.filter(s => s.id !== studentId)
+    } : null);
+    setBatches(prev => prev.map(b => b.id === selectedBatch.id ? { ...b, student_count: Math.max(0, b.student_count - 1) } : b));
 
     try {
       const res = await fetch(`/api/admin/batches/${selectedBatch.id}/students?student_id=${studentId}`, {

@@ -47,8 +47,8 @@ export default function StudentsPage() {
   const fetchData = async () => {
     try {
       const [resStu, resBatches] = await Promise.all([
-        fetch('/api/admin/students'),
-        fetch('/api/admin/batches')
+        fetch(`/api/admin/students?_t=${Date.now()}`, { cache: 'no-store' }),
+        fetch(`/api/admin/batches?_t=${Date.now()}`, { cache: 'no-store' })
       ]);
       if (resStu.status === 401 || resStu.status === 403 || resBatches.status === 401 || resBatches.status === 403) {
         window.location.href = '/login';
@@ -94,6 +94,21 @@ export default function StudentsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create student');
 
+      // ⚡ Optimistically add newly created student to UI instantly
+      if (data.student) {
+        const batchMap = new Map(batches.map(b => [b.id, b.name]));
+        const bNames = (selectedBatchIds || []).map(id => batchMap.get(id) || id);
+        const newStuWithBatches = {
+          ...data.student,
+          batches: bNames
+        };
+        setStudents(prev => {
+          const updated = [newStuWithBatches, ...prev];
+          cachedStudents = updated;
+          return updated;
+        });
+      }
+
       setIsAddOpen(false);
       setName('');
       setEmail('');
@@ -131,17 +146,46 @@ export default function StudentsPage() {
   };
 
   const handleToggleStatus = async (student: UserProfile) => {
-    const newStatus = student.status === 'active' ? 'inactive' : 'active';
-    if (!confirm(`Are you sure you want to mark ${student.name} as ${newStatus}?`)) return;
+    const newStatus: 'active' | 'inactive' = student.status === 'active' ? 'inactive' : 'active';
+    const actionLabel = newStatus === 'inactive' ? 'deactivate' : 'activate';
+    if (!confirm(`Are you sure you want to ${actionLabel} ${student.name}?`)) return;
+
+    // ⚡ 1. OPTIMISTIC UPDATE: Update UI IMMEDIATELY (0ms perceived latency!)
+    const previousStatus = student.status;
+    setStudents(prev => {
+      const updated = prev.map(s => s.id === student.id ? { ...s, status: newStatus } : s);
+      cachedStudents = updated;
+      return updated;
+    });
 
     try {
-      await fetch(`/api/admin/students/${student.id}`, {
+      const res = await fetch(`/api/admin/students/${student.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
       });
-      fetchData();
-    } catch {}
+      if (!res.ok) {
+        // Rollback on server error
+        setStudents(prev => {
+          const reverted = prev.map(s => s.id === student.id ? { ...s, status: previousStatus } : s);
+          cachedStudents = reverted;
+          return reverted;
+        });
+        const data = await res.json();
+        alert(data.error || 'Failed to update student status');
+      } else {
+        // Background refresh to guarantee database sync
+        fetchData();
+      }
+    } catch {
+      // Rollback on network failure
+      setStudents(prev => {
+        const reverted = prev.map(s => s.id === student.id ? { ...s, status: previousStatus } : s);
+        cachedStudents = reverted;
+        return reverted;
+      });
+      alert('Network error while updating status. Please try again.');
+    }
   };
 
   const handleDeleteStudent = async () => {

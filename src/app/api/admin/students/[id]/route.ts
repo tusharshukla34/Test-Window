@@ -2,6 +2,9 @@ import { NextRequest, NextResponse, after } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

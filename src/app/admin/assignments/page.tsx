@@ -15,7 +15,7 @@ export default function AdminAssignmentsPage() {
   const [loading, setLoading] = useState(!cachedAssignmentsList);
 
   const fetchAssignments = () => {
-    fetch('/api/admin/assignments')
+    fetch(`/api/admin/assignments?_t=${Date.now()}`, { cache: 'no-store' })
       .then(res => {
         if (res.status === 401 || res.status === 403) {
           router.push('/login');

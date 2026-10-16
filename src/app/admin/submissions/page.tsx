@@ -62,11 +62,12 @@ export default function SubmissionsQueuePage() {
       if (selectedBatch) url += `batch_id=${selectedBatch}&`;
       if (selectedAssignment) url += `assignment_id=${selectedAssignment}&`;
       if (selectedStatus) url += `status=${selectedStatus}&`;
+      url += `_t=${Date.now()}`;
 
       const [resSubs, resBatches, resAsg] = await Promise.all([
-        fetch(url),
-        fetch('/api/admin/batches'),
-        fetch('/api/admin/assignments')
+        fetch(url, { cache: 'no-store' }),
+        fetch(`/api/admin/batches?_t=${Date.now()}`, { cache: 'no-store' }),
+        fetch(`/api/admin/assignments?_t=${Date.now()}`, { cache: 'no-store' })
       ]);
 
       if (resSubs.status === 401 || resSubs.status === 403 || resBatches.status === 401 || resBatches.status === 403) {
@@ -101,12 +102,23 @@ export default function SubmissionsQueuePage() {
     if (!activeSub) return;
     setEvaluating(true);
 
+    const evaluatedSubId = activeSub.id;
+    const awardedMarks = Number(marks);
+
+    // Optimistically update status in list immediately
+    setSubmissions(prev => prev.map(s => s.id === evaluatedSubId ? {
+      ...s,
+      status: 'evaluated',
+      marks_awarded: awardedMarks,
+      feedback: feedback
+    } : s));
+
     try {
-      const res = await fetch(`/api/admin/submissions/${activeSub.id}/evaluate`, {
+      const res = await fetch(`/api/admin/submissions/${evaluatedSubId}/evaluate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          marks_awarded: Number(marks),
+          marks_awarded: awardedMarks,
           feedback,
           release_draft: releaseDraft
         })
