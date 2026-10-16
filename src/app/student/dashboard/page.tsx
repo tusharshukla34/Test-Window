@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { ClayCard, ClayCard3D, ClayButton } from '@/components/ui/ClayComponents';
 import StudentHero3D from '@/components/student/StudentHero3D';
-import Student3DPerformanceCard from '@/components/student/Student3DPerformanceCard';
+import StudentSummaryMetrics3D from '@/components/student/StudentSummaryMetrics3D';
 import Ambient3DBackground from '@/components/ui/Ambient3DBackground';
 import { StudentBatchBreakdown } from '@/lib/db/types';
 
@@ -167,112 +167,14 @@ export default function StudentDashboardPage() {
         batches={data.batches}
       />
 
-      {/* Gamified 3D Momentum & Performance Hub */}
-      <Student3DPerformanceCard
-        completedAssignments={data.completed_assignments}
+      {/* 3D Animated Summary Metrics with Harmonic Wave & Gyro Tilt */}
+      <StudentSummaryMetrics3D
         pendingAssignments={data.pending_assignments}
-        completedExams={data.completed_exams}
         upcomingExams={data.upcoming_exams}
-        recentExamAccuracy={data.recent_exam_results?.[0]?.accuracy}
+        awaitingEvaluation={data.awaiting_evaluation}
+        completedAssignments={data.completed_assignments}
+        batchesCount={data.batches.length}
       />
-
-      {/* Main Aggregate Metric Cards (All Batches Total) - With 3D Perspective Tilt & Light Sheen */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-            <Sparkles size={14} className="text-teal-600" /> Overall Summary Across All Batches
-          </h2>
-          <span className="text-[11px] text-slate-600 font-medium">
-            {data.batches.length} {data.batches.length === 1 ? 'Batch Enrolled' : 'Batches Enrolled'}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-          <ClayCard3D
-            variant="amber"
-            glareVariant="amber"
-            maxTilt={14}
-            animatedFloat={true}
-            onClick={() => router.push('/student/assignments')}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">Total Pending Tasks</span>
-              <div className="w-9 h-9 rounded-2xl bg-white/90 text-amber-700 flex items-center justify-center clay-icon-bubble shadow-xs" style={{ transform: 'translateZ(18px)' }}>
-                <Clock size={19} />
-              </div>
-            </div>
-            <p className="text-3xl sm:text-4xl font-black text-amber-950 tracking-tight" style={{ transform: 'translateZ(24px)' }}>
-              {data.pending_assignments}
-            </p>
-            <p className="text-xs text-amber-700 mt-1 font-semibold flex items-center gap-1" style={{ transform: 'translateZ(16px)' }}>
-              Homework to submit <ArrowRight size={13} />
-            </p>
-          </ClayCard3D>
-
-          <ClayCard3D
-            variant="teal"
-            glareVariant="cyan"
-            maxTilt={14}
-            animatedFloat={true}
-            onClick={() => router.push('/student/exams')}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-teal-800 uppercase tracking-wider">Available Exams</span>
-              <div className="w-9 h-9 rounded-2xl bg-white/90 text-teal-700 flex items-center justify-center clay-icon-bubble shadow-xs" style={{ transform: 'translateZ(18px)' }}>
-                <FileCheck2 size={19} />
-              </div>
-            </div>
-            <p className="text-3xl sm:text-4xl font-black text-teal-950 tracking-tight" style={{ transform: 'translateZ(24px)' }}>
-              {data.upcoming_exams}
-            </p>
-            <p className="text-xs text-teal-700 mt-1 font-semibold flex items-center gap-1" style={{ transform: 'translateZ(16px)' }}>
-              Mock exams scheduled <ArrowRight size={13} />
-            </p>
-          </ClayCard3D>
-
-          <ClayCard3D
-            variant="blue"
-            glareVariant="holographic"
-            maxTilt={14}
-            animatedFloat={true}
-            onClick={() => router.push('/student/assignments')}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-blue-800 uppercase tracking-wider">Under Review</span>
-              <div className="w-9 h-9 rounded-2xl bg-white/90 text-blue-700 flex items-center justify-center clay-icon-bubble shadow-xs" style={{ transform: 'translateZ(18px)' }}>
-                <BookOpen size={19} />
-              </div>
-            </div>
-            <p className="text-3xl sm:text-4xl font-black text-blue-950 tracking-tight" style={{ transform: 'translateZ(24px)' }}>
-              {data.awaiting_evaluation}
-            </p>
-            <p className="text-xs text-blue-700 mt-1 font-semibold" style={{ transform: 'translateZ(16px)' }}>
-              Awaiting evaluation
-            </p>
-          </ClayCard3D>
-
-          <ClayCard3D
-            variant="purple"
-            glareVariant="purple"
-            maxTilt={14}
-            animatedFloat={true}
-            onClick={() => router.push('/student/assignments')}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-purple-800 uppercase tracking-wider">Completed Tasks</span>
-              <div className="w-9 h-9 rounded-2xl bg-white/90 text-purple-700 flex items-center justify-center clay-icon-bubble shadow-xs" style={{ transform: 'translateZ(18px)' }}>
-                <CheckCircle2 size={19} />
-              </div>
-            </div>
-            <p className="text-3xl sm:text-4xl font-black text-purple-950 tracking-tight" style={{ transform: 'translateZ(24px)' }}>
-              {data.completed_assignments}
-            </p>
-            <p className="text-xs text-purple-700 mt-1 font-semibold" style={{ transform: 'translateZ(16px)' }}>
-              Graded & marks awarded
-            </p>
-          </ClayCard3D>
-        </div>
-      </div>
 
       {/* Two Column Section: Homework Submissions & Exam Results with 3D Perspectives */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
