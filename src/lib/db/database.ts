@@ -413,6 +413,17 @@ function seedInitialData() {
     'active'
   );
 
+  // Demo Student
+  insertProfile.run(
+    'usr-student-demo-01',
+    'STU-2026-001',
+    'Aarav Sharma',
+    'student@cybrom.com',
+    defaultPasswordHash,
+    'student',
+    'active'
+  );
+
   // Question Bank: 20 Questions (matching AE/JE Mechanical mock test)
   const insertQuestion = db.prepare(`
     INSERT OR IGNORE INTO question_bank (id, subject, topic, difficulty, question_text, options, correct_option_id, explanation, marks, negative_penalty)
