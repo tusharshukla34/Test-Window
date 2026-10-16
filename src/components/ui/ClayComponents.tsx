@@ -30,6 +30,95 @@ export function ClayCard({
   );
 }
 
+export interface ClayCard3DProps extends React.HTMLAttributes<HTMLDivElement> {
+  children: React.ReactNode;
+  variant?: 'white' | 'purple' | 'teal' | 'amber' | 'blue';
+  className?: string;
+  maxTilt?: number;
+  glare?: boolean;
+}
+
+export function ClayCard3D({
+  children,
+  variant = 'white',
+  className = '',
+  maxTilt = 8,
+  glare = true,
+  onClick,
+  ...props
+}: ClayCard3DProps) {
+  const cardRef = React.useRef<HTMLDivElement>(null);
+  const [glarePos, setGlarePos] = React.useState<{ x: number; y: number; opacity: number }>({ x: 50, y: 50, opacity: 0 });
+  const [transform, setTransform] = React.useState<string>('perspective(800px) rotateX(0deg) rotateY(0deg) translateZ(0px)');
+  const [isHovered, setIsHovered] = React.useState(false);
+
+  let variantClass = 'clay-card';
+  if (variant === 'purple') variantClass = 'clay-card-pastel-purple';
+  else if (variant === 'teal') variantClass = 'clay-card-pastel-teal';
+  else if (variant === 'amber') variantClass = 'clay-card-pastel-amber';
+  else if (variant === 'blue') variantClass = 'clay-card-pastel-blue';
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+
+    const rotX = -((y - centerY) / centerY) * maxTilt;
+    const rotY = ((x - centerX) / centerX) * maxTilt;
+
+    setTransform(`perspective(900px) rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(2)}deg) translateZ(12px) scale3d(1.025, 1.025, 1.025)`);
+    setGlarePos({
+      x: Math.round((x / rect.width) * 100),
+      y: Math.round((y / rect.height) * 100),
+      opacity: 0.35
+    });
+  };
+
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+    setTransform('perspective(900px) rotateX(0deg) rotateY(0deg) translateZ(0px) scale3d(1, 1, 1)');
+    setGlarePos(prev => ({ ...prev, opacity: 0 }));
+  };
+
+  return (
+    <div
+      ref={cardRef}
+      onMouseMove={handleMouseMove}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onClick={onClick}
+      style={{
+        transform,
+        transformStyle: 'preserve-3d',
+        transition: isHovered ? 'transform 0.08s ease-out' : 'transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)',
+        willChange: 'transform'
+      }}
+      className={`${variantClass} p-5 relative overflow-hidden select-none transition-shadow ${onClick ? 'cursor-pointer' : ''} ${className}`}
+      {...props}
+    >
+      {glare && (
+        <div
+          className="pointer-events-none absolute inset-0 z-20 transition-opacity duration-300"
+          style={{
+            opacity: glarePos.opacity,
+            background: `radial-gradient(circle at ${glarePos.x}% ${glarePos.y}%, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 65%)`
+          }}
+        />
+      )}
+      <div style={{ transform: 'translateZ(18px)', transformStyle: 'preserve-3d' }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 interface ClayButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger' | 'teal' | 'outline';
   size?: 'sm' | 'md' | 'lg';
