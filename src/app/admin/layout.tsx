@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import Link from 'next/navigation';
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -20,6 +20,8 @@ import {
   X,
   Sparkles
 } from 'lucide-react';
+
+let cachedAdminUser: { name?: string; email?: string } | null = null;
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -42,26 +44,52 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: 'Exam Evaluations', href: '/admin/exam-evaluations', icon: ClipboardCheck },
   ];
 
-  const [adminUser, setAdminUser] = useState<{ name?: string; email?: string } | null>(null);
+  const [adminUser, setAdminUser] = useState<{ name?: string; email?: string } | null>(cachedAdminUser);
 
   useEffect(() => {
+    if (cachedAdminUser) {
+      setAdminUser(cachedAdminUser);
+    } else {
+      try {
+        const saved = localStorage.getItem('admin_portal_user');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          cachedAdminUser = parsed;
+          setAdminUser(parsed);
+        }
+      } catch {}
+    }
+
     fetch('/api/auth/me')
       .then(res => {
-        if (!res.ok) {
+        // ONLY redirect to /login if genuinely unauthorized (401 / 403)
+        if (res.status === 401 || res.status === 403) {
+          cachedAdminUser = null;
+          try { localStorage.removeItem('admin_portal_user'); } catch {}
           router.push('/login');
+          return null;
+        }
+        if (!res.ok) {
+          // Server error 500 or timeout: DO NOT kick the user out!
           return null;
         }
         return res.json();
       })
       .then(data => {
-        if (!data || !data.authenticated || data.user?.role !== 'admin') {
-          router.push('/login');
-        } else {
-          setAdminUser(data.user);
+        if (data && data.authenticated) {
+          if (data.user?.role !== 'admin') {
+            router.push('/login');
+          } else {
+            setAdminUser(data.user);
+            cachedAdminUser = data.user;
+            try {
+              localStorage.setItem('admin_portal_user', JSON.stringify(data.user));
+            } catch {}
+          }
         }
       })
       .catch(() => {
-        router.push('/login');
+        // Transient network error or component unmount fetch cancellation: DO NOT log out!
       });
 
     fetch('/api/notifications')
@@ -99,7 +127,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [showNotifDropdown]);
 
   const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
+    cachedAdminUser = null;
+    try {
+      localStorage.removeItem('admin_portal_user');
+    } catch {}
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     router.push('/login');
   };
 
@@ -175,7 +207,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               const Icon = item.icon;
               const isActive = pathname === item.href || (item.href !== '/admin/dashboard' && pathname.startsWith(item.href));
               return (
-                <a
+                <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileMenuOpen(false)}
@@ -188,7 +220,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 >
                   <Icon size={18} className={isActive ? 'text-indigo-600' : 'text-slate-400'} />
                   {item.label}
-                </a>
+                </Link>
               );
             })}
           </nav>

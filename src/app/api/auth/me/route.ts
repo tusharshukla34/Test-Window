@@ -12,18 +12,21 @@ export async function GET() {
       return NextResponse.json({ authenticated: false }, { status: 401 });
     }
 
-    await ensureCloudSyncReady();
-
-    const user = dbService.getUserById(session.userId) || dbService.getUserByEmail(session.email);
-    if (user) {
-      return NextResponse.json({
-        authenticated: true,
-        user
-      }, {
-        headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
-        }
-      });
+    try {
+      await ensureCloudSyncReady();
+      const user = dbService.getUserById(session.userId) || dbService.getUserByEmail(session.email);
+      if (user) {
+        return NextResponse.json({
+          authenticated: true,
+          user
+        }, {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+          }
+        });
+      }
+    } catch (dbErr) {
+      console.warn('[AUTH ME DB LOOKUP WARNING]:', dbErr);
     }
 
     // Resilient fallback using signed session payload if DB record lookup is syncing
@@ -44,7 +47,7 @@ export async function GET() {
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Auth verification error';
-    return NextResponse.json({ authenticated: false, error: message }, { status: 500 });
+    return NextResponse.json({ authenticated: false, error: message }, { status: 401 });
   }
 }
 

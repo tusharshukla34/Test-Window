@@ -1,6 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export async function POST(
   req: NextRequest,
@@ -25,7 +28,13 @@ export async function POST(
       evaluated_by: session.userId
     });
 
-    await syncDatabaseToCloud();
+    after(async () => {
+      try {
+        await syncDatabaseToCloud();
+      } catch (cloudErr) {
+        console.warn('[CLOUD SYNC AFTER EVALUATION]:', cloudErr);
+      }
+    });
 
     return NextResponse.json({ success: true, submission: updated });
   } catch (err: unknown) {

@@ -58,10 +58,14 @@ export async function getSession(): Promise<SessionPayload | null> {
 }
 
 export async function requireAuth(): Promise<SessionPayload> {
-  await ensureCloudSyncReady();
   const session = await getSession();
   if (!session) {
     throw new Error('Unauthorized');
+  }
+  try {
+    await ensureCloudSyncReady();
+  } catch (err) {
+    console.warn('[CLOUD SYNC ON AUTH]:', err);
   }
   return session;
 }

@@ -51,18 +51,21 @@ interface AdminStats {
   }[];
 }
 
+let cachedAdminStats: AdminStats | null = null;
+
 export default function AdminDashboardPage() {
   const router = useRouter();
-  const [stats, setStats] = useState<AdminStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<AdminStats | null>(cachedAdminStats);
+  const [loading, setLoading] = useState(!cachedAdminStats);
   const [error, setError] = useState<string | null>(null);
 
   const fetchDashboard = () => {
-    setLoading(true);
+    if (!cachedAdminStats) setLoading(true);
     setError(null);
-    fetch('/api/admin/dashboard')
+    fetch(`/api/admin/dashboard?_t=${Date.now()}`, { cache: 'no-store' })
       .then(async res => {
         if (res.status === 401 || res.status === 403) {
+          cachedAdminStats = null;
           router.push('/login');
           return null;
         }
@@ -75,6 +78,7 @@ export default function AdminDashboardPage() {
       .then(data => {
         if (data) {
           setStats(data);
+          cachedAdminStats = data;
         }
       })
       .catch(err => {
