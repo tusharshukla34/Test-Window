@@ -3,6 +3,9 @@ import { requireStudent, signToken, COOKIE_NAME } from '@/lib/auth';
 import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 import { cookies } from 'next/headers';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function PATCH(req: NextRequest) {
   try {
     const session = await requireStudent();
@@ -21,8 +24,10 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    if (avatar_url !== undefined && avatar_url !== null && typeof avatar_url !== 'string') {
-      return NextResponse.json({ error: 'Invalid avatar URL' }, { status: 400 });
+    if (avatar_url !== undefined && avatar_url !== null) {
+      if (typeof avatar_url !== 'string' || avatar_url.length > 500000) {
+        return NextResponse.json({ error: 'Avatar image too large or invalid' }, { status: 400 });
+      }
     }
 
     const updatedUser = dbService.updateStudentSelfProfile(session.userId, {
@@ -48,8 +53,8 @@ export async function PATCH(req: NextRequest) {
       path: '/'
     });
 
-    // Trigger non-blocking cloud sync
-    syncDatabaseToCloud();
+    // Synchronously ensure database is pushed to Supabase cloud
+    await syncDatabaseToCloud(true);
 
     return NextResponse.json({
       success: true,

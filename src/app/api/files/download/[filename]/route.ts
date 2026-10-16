@@ -30,11 +30,36 @@ export async function GET(
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
 
+    const ext = safeFilename.split('.').pop()?.toLowerCase() || '';
+    let mimeType = 'application/octet-stream';
+    let isInline = false;
+
+    if (['jpg', 'jpeg'].includes(ext)) {
+      mimeType = 'image/jpeg';
+      isInline = true;
+    } else if (ext === 'png') {
+      mimeType = 'image/png';
+      isInline = true;
+    } else if (ext === 'webp') {
+      mimeType = 'image/webp';
+      isInline = true;
+    } else if (ext === 'gif') {
+      mimeType = 'image/gif';
+      isInline = true;
+    } else if (ext === 'pdf') {
+      mimeType = 'application/pdf';
+      isInline = true;
+    } else if (ext === 'txt') {
+      mimeType = 'text/plain';
+      isInline = true;
+    }
+
     const fileBuffer = fs.readFileSync(filePath);
     return new NextResponse(fileBuffer, {
       headers: {
-        'Content-Type': 'application/octet-stream',
-        'Content-Disposition': `attachment; filename="${safeFilename}"`
+        'Content-Type': mimeType,
+        'Content-Disposition': isInline ? `inline; filename="${safeFilename}"` : `attachment; filename="${safeFilename}"`,
+        'Cache-Control': 'public, max-age=86400'
       }
     });
   } catch (err: unknown) {

@@ -52,8 +52,8 @@ export default function StudentProfileModal({
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setError('Image size exceeds 10 MB limit.');
+    if (file.size > 15 * 1024 * 1024) {
+      setError('Image size exceeds 15 MB limit.');
       return;
     }
 
@@ -61,22 +61,47 @@ export default function StudentProfileModal({
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      // Process, center-crop, and compress image to 256x256 JPEG data URL
+      // This permanently embeds the image inside the user profile in SQLite/Cloud DB
+      // so it never gets lost on Vercel serverless cold starts or across logouts!
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            try {
+              const canvas = document.createElement('canvas');
+              const size = 256;
+              canvas.width = size;
+              canvas.height = size;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) {
+                resolve(event.target?.result as string);
+                return;
+              }
 
-      const res = await fetch('/api/files/upload', {
-        method: 'POST',
-        body: formData
+              // Square center-crop
+              const minDim = Math.min(img.width, img.height);
+              const startX = (img.width - minDim) / 2;
+              const startY = (img.height - minDim) / 2;
+
+              ctx.drawImage(img, startX, startY, minDim, minDim, 0, 0, size, size);
+              const optimized = canvas.toDataURL('image/jpeg', 0.85);
+              resolve(optimized);
+            } catch (err) {
+              reject(err);
+            }
+          };
+          img.onerror = () => reject(new Error('Failed to load image'));
+          img.src = event.target?.result as string;
+        };
+        reader.onerror = () => reject(new Error('Failed to read image file'));
+        reader.readAsDataURL(file);
       });
 
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        throw new Error(data.error || 'Failed to upload photo');
-      }
-
-      setAvatarUrl(data.file_url);
+      setAvatarUrl(dataUrl);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Photo upload failed');
+      setError(err instanceof Error ? err.message : 'Photo processing failed');
     } finally {
       setUploading(false);
       if (fileInputRef.current) {

@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { dbService, ensureCloudSyncReady } from '@/lib/db/database';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET() {
   try {
     const session = await getSession();
@@ -11,11 +14,15 @@ export async function GET() {
 
     await ensureCloudSyncReady();
 
-    const user = dbService.getUserById(session.userId);
+    const user = dbService.getUserById(session.userId) || dbService.getUserByEmail(session.email);
     if (user) {
       return NextResponse.json({
         authenticated: true,
         user
+      }, {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+        }
       });
     }
 
@@ -29,6 +36,10 @@ export async function GET() {
         email: session.email,
         role: session.role,
         avatar_url: null
+      }
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
       }
     });
   } catch (err: unknown) {

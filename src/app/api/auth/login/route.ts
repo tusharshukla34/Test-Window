@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
         email: user.email,
         role: user.role,
         student_id: user.student_id,
+        avatar_url: user.avatar_url || null,
       },
       redirectTo: user.role === 'admin' ? '/admin/dashboard' : '/student/dashboard'
     });

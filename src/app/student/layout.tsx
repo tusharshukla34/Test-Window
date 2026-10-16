@@ -55,7 +55,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
       } catch {}
     }
 
-    fetch('/api/auth/me')
+    fetch(`/api/auth/me?_t=${Date.now()}`, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
         if (data.authenticated && data.user) {
@@ -399,7 +399,14 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
         onClose={() => setProfileModalOpen(false)}
         user={user}
         onProfileUpdated={(updated) => {
-          setUser(prev => prev ? { ...prev, name: updated.name, avatar_url: updated.avatar_url } : null);
+          setUser(prev => {
+            const next = prev ? { ...prev, name: updated.name, avatar_url: updated.avatar_url } : null;
+            cachedStudentUser = next;
+            try {
+              if (next) localStorage.setItem('student_portal_user', JSON.stringify(next));
+            } catch {}
+            return next;
+          });
         }}
       />
     </div>
