@@ -96,9 +96,16 @@ export default function StudentAssignmentsPage() {
           body: formData
         });
 
-        const uploadData = await uploadRes.json();
+        const uploadText = await uploadRes.text();
+        let uploadData: any = {};
+        try {
+          uploadData = JSON.parse(uploadText);
+        } catch {
+          throw new Error(uploadText || `Upload server returned an invalid response (Status ${uploadRes.status})`);
+        }
+
         if (!uploadRes.ok) {
-          throw new Error(uploadData.error || 'File upload failed');
+          throw new Error(uploadData.error || uploadData.message || 'File upload failed');
         }
 
         fileUrl = uploadData.file_url;
@@ -120,9 +127,16 @@ export default function StudentAssignmentsPage() {
         })
       });
 
-      const submitData = await submitRes.json();
+      const submitText = await submitRes.text();
+      let submitData: any = {};
+      try {
+        submitData = JSON.parse(submitText);
+      } catch {
+        throw new Error(submitText || `Submission server returned an invalid response (Status ${submitRes.status})`);
+      }
+
       if (!submitRes.ok) {
-        throw new Error(submitData.error || 'Submission failed');
+        throw new Error(submitData.error || submitData.message || 'Submission failed');
       }
 
       const submittedTitle = selectedAsg.title;

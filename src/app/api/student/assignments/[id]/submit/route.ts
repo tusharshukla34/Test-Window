@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requireStudent } from '@/lib/auth';
 import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export async function POST(
   req: NextRequest,
@@ -11,7 +12,7 @@ export async function POST(
   try {
     const session = await requireStudent();
     const { id } = await params;
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
 
     await ensureCloudSyncReady();
 
@@ -33,17 +34,26 @@ export async function POST(
       file_mime
     });
 
-    await syncDatabaseToCloud();
-
-    // Real-Time Google Sheet Sync
-    try {
-      const { syncAssignmentSubmission } = await import('@/lib/services/googleSheets');
-      const student = dbService.getUserById(session.userId);
-      const batch = targetBatchId ? dbService.getBatchById(targetBatchId) : null;
-      if (asg && student) {
-        syncAssignmentSubmission(submission, student.name, asg.title, batch?.name || 'General');
+    // Run cloud upload and Google Sheet sync in the background
+    // This allows the student to receive a 200 OK in ~10ms without timing out!
+    after(async () => {
+      try {
+        await syncDatabaseToCloud();
+      } catch (cloudErr) {
+        console.warn('[CLOUD SYNC AFTER SUBMISSION]:', cloudErr);
       }
-    } catch {}
+
+      try {
+        const { syncAssignmentSubmission } = await import('@/lib/services/googleSheets');
+        const student = dbService.getUserById(session.userId);
+        const batch = targetBatchId ? dbService.getBatchById(targetBatchId) : null;
+        if (asg && student) {
+          syncAssignmentSubmission(submission, student.name, asg.title, batch?.name || 'General');
+        }
+      } catch (sheetErr) {
+        console.warn('[GOOGLE SHEET AFTER SUBMISSION]:', sheetErr);
+      }
+    });
 
     return NextResponse.json({ success: true, submission });
   } catch (err: unknown) {
