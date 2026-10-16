@@ -113,9 +113,10 @@ export default function StudentProfileModal({
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanName = name.trim();
+    const isAdmin = user?.role === 'admin';
+    const cleanName = isAdmin ? name.trim() : user.name;
 
-    if (cleanName.length < 2) {
+    if (isAdmin && cleanName.length < 2) {
       setError('Full name must be at least 2 characters long.');
       return;
     }
@@ -129,7 +130,7 @@ export default function StudentProfileModal({
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: cleanName,
+          name: isAdmin ? cleanName : undefined,
           avatar_url: avatarUrl
         })
       });
@@ -166,7 +167,9 @@ export default function StudentProfileModal({
             <h3 className="text-base font-bold text-slate-900">
               {user.role === 'admin' ? 'Profile Details' : 'Student Profile'}
             </h3>
-            <p className="text-xs text-slate-500">Edit your display name and photo</p>
+            <p className="text-xs text-slate-500">
+              {user.role === 'admin' ? 'Edit your display name and photo' : 'Upload or update your profile photo'}
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -256,22 +259,43 @@ export default function StudentProfileModal({
             <p className="text-[11px] text-slate-400">JPG, PNG, WebP up to 10 MB</p>
           </div>
 
-          {/* Editable Display Name Field */}
+          {/* Full Name Field: Editable only for Admin; strictly locked for Students */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-              <User size={14} className="text-teal-600" />
-              Full Name
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter your full name"
-              maxLength={60}
-              required
-              disabled={saving}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition shadow-2xs font-medium"
-            />
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <User size={14} className="text-teal-600" />
+                Full Name
+              </label>
+              {user.role !== 'admin' && (
+                <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                  <Lock size={10} /> Locked
+                </span>
+              )}
+            </div>
+            {user.role === 'admin' ? (
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter your full name"
+                maxLength={60}
+                required
+                disabled={saving}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition shadow-2xs font-medium"
+              />
+            ) : (
+              <div>
+                <input
+                  type="text"
+                  value={user.name}
+                  disabled
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700 cursor-not-allowed select-none"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Student name is officially registered and cannot be modified.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Non-Editable Locked Fields: Student ID & Email */}

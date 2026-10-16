@@ -14,8 +14,15 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const { name, avatar_url } = body;
 
-    // Strict validation: user can ONLY update name and avatar_url
-    if (name !== undefined) {
+    // Strict validation: students CANNOT change their registered name
+    if (session.role === 'student' && name !== undefined && name.trim() !== session.name) {
+      return NextResponse.json(
+        { error: 'Students cannot change their registered name. Please contact your trainer.' },
+        { status: 403 }
+      );
+    }
+
+    if (name !== undefined && session.role === 'admin') {
       if (typeof name !== 'string' || name.trim().length < 2) {
         return NextResponse.json({ error: 'Name must be at least 2 characters long' }, { status: 400 });
       }
@@ -30,8 +37,9 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
+    // Only allow admin to change display name; students can only update photo
     const updatedUser = dbService.updateStudentSelfProfile(session.userId, {
-      name: name !== undefined ? name.trim() : undefined,
+      name: session.role === 'admin' && name !== undefined ? name.trim() : undefined,
       avatar_url: avatar_url !== undefined ? avatar_url : undefined
     });
 
