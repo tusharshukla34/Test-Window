@@ -933,7 +933,7 @@ export const dbService = {
 
   updateStudentSelfProfile(id: string, data: { name?: string; avatar_url?: string | null }): UserProfile | null {
     const existing = this.getUserById(id);
-    if (!existing || existing.role !== 'student') return null;
+    if (!existing) return null;
 
     const newName = data.name !== undefined ? data.name.trim() : existing.name;
     const newAvatar = data.avatar_url !== undefined ? data.avatar_url : (existing.avatar_url || null);

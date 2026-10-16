@@ -5,7 +5,7 @@ import { getSessionUser } from '@/lib/auth';
 export async function GET(req: NextRequest) {
   try {
     const user = await getSessionUser();
-    if (!user || user.role !== 'student') {
+    if (!user || (user.role !== 'student' && user.role !== 'admin')) {
       return NextResponse.json({ error: 'Unauthorized. Student access required.' }, { status: 403 });
     }
 

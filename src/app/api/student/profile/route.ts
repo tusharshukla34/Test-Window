@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireStudent, signToken, COOKIE_NAME } from '@/lib/auth';
+import { requireAuth, signToken, COOKIE_NAME } from '@/lib/auth';
 import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 import { cookies } from 'next/headers';
 
@@ -8,13 +8,13 @@ export const revalidate = 0;
 
 export async function PATCH(req: NextRequest) {
   try {
-    const session = await requireStudent();
+    const session = await requireAuth();
     await ensureCloudSyncReady();
 
     const body = await req.json();
     const { name, avatar_url } = body;
 
-    // Strict validation: student can ONLY update name and avatar_url
+    // Strict validation: user can ONLY update name and avatar_url
     if (name !== undefined) {
       if (typeof name !== 'string' || name.trim().length < 2) {
         return NextResponse.json({ error: 'Name must be at least 2 characters long' }, { status: 400 });
@@ -36,7 +36,7 @@ export async function PATCH(req: NextRequest) {
     });
 
     if (!updatedUser) {
-      return NextResponse.json({ error: 'Student profile not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
     // Refresh the session JWT with the updated name
@@ -53,8 +53,12 @@ export async function PATCH(req: NextRequest) {
       path: '/'
     });
 
-    // Synchronously ensure database is pushed to Supabase cloud
-    await syncDatabaseToCloud(true);
+    // Ensure database is pushed to Supabase cloud safely
+    try {
+      await syncDatabaseToCloud(true);
+    } catch (syncErr) {
+      console.warn('[PROFILE CLOUD SYNC ERROR]:', syncErr);
+    }
 
     return NextResponse.json({
       success: true,
@@ -68,7 +72,7 @@ export async function PATCH(req: NextRequest) {
       }
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Failed to update student profile';
+    const message = err instanceof Error ? err.message : 'Failed to update profile';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

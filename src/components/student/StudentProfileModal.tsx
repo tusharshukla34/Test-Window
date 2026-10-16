@@ -13,6 +13,7 @@ interface StudentProfileModalProps {
     student_id?: string | null;
     email: string;
     avatar_url?: string | null;
+    role?: string;
   } | null;
   onProfileUpdated: (updated: { name: string; avatar_url: string | null }) => void;
 }
@@ -162,7 +163,9 @@ export default function StudentProfileModal({
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div>
-            <h3 className="text-base font-bold text-slate-900">Student Profile</h3>
+            <h3 className="text-base font-bold text-slate-900">
+              {user.role === 'admin' ? 'Profile Details' : 'Student Profile'}
+            </h3>
             <p className="text-xs text-slate-500">Edit your display name and photo</p>
           </div>
           <button
@@ -277,7 +280,7 @@ export default function StudentProfileModal({
               <div className="flex items-center justify-between">
                 <label className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
                   <Hash size={13} className="text-slate-400" />
-                  Student Roll / ID
+                  {user.role === 'admin' ? 'Account / User ID' : 'Student Roll / ID'}
                 </label>
                 <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
                   <Lock size={10} /> Locked

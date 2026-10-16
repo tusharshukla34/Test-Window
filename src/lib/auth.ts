@@ -80,7 +80,7 @@ export async function requireAdmin(): Promise<SessionPayload> {
 
 export async function requireStudent(): Promise<SessionPayload> {
   const session = await requireAuth();
-  if (session.role !== 'student') {
+  if (session.role !== 'student' && session.role !== 'admin') {
     throw new Error('Forbidden: Student access required');
   }
   return session;

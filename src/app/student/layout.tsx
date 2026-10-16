@@ -23,6 +23,7 @@ interface StudentUser {
   student_id: string | null;
   email: string;
   avatar_url?: string | null;
+  role?: string;
 }
 
 let cachedStudentUser: StudentUser | null = null;
