@@ -16,7 +16,8 @@ import {
   Layers,
   ChevronRight,
   Calendar,
-  Check
+  Check,
+  RefreshCw
 } from 'lucide-react';
 import { ClayCard, ClayCard3D, ClayButton } from '@/components/ui/ClayComponents';
 import { Academy3DHologram } from '@/components/ui/Academy3DHologram';
@@ -60,36 +61,97 @@ let cachedStudentDashboard: StudentDashboardData | null = null;
 
 export default function StudentDashboardPage() {
   const router = useRouter();
-  const [data, setData] = useState<StudentDashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<StudentDashboardData | null>(cachedStudentDashboard);
+  const [loading, setLoading] = useState(!cachedStudentDashboard);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchDashboard = () => {
+    fetch(`/api/student/dashboard?_t=${Date.now()}`, { cache: 'no-store' })
+      .then(async res => {
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          let errMsg = `Server returned status ${res.status}`;
+          try {
+            const parsed = JSON.parse(text);
+            errMsg = parsed.error || errMsg;
+          } catch {}
+          throw new Error(errMsg);
+        }
+        return res.json();
+      })
+      .then(d => {
+        if (d && !d.error && d.student) {
+          setData(d);
+          cachedStudentDashboard = d;
+          setError(null);
+          try {
+            localStorage.setItem('student_dashboard_cache', JSON.stringify(d));
+          } catch {}
+        }
+      })
+      .catch(err => {
+        console.warn('[STUDENT DASHBOARD FETCH]:', err);
+        setError(err instanceof Error ? err.message : 'Unable to connect to dashboard server');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  };
 
   useEffect(() => {
     if (cachedStudentDashboard) {
       setData(cachedStudentDashboard);
       setLoading(false);
+    } else {
+      try {
+        const saved = localStorage.getItem('student_dashboard_cache');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          cachedStudentDashboard = parsed;
+          setData(parsed);
+          setLoading(false);
+        }
+      } catch {}
     }
 
-    fetch('/api/student/dashboard')
-      .then(res => res.json())
-      .then(d => {
-        if (d && !d.error) {
-          setData(d);
-          cachedStudentDashboard = d;
-        }
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    fetchDashboard();
   }, []);
 
   if (loading && !data) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
         <div className="w-10 h-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-xs font-semibold text-slate-500">Loading student workspace...</p>
       </div>
     );
   }
 
-  if (!data) return null;
+  if (!data) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4 border border-amber-200 shadow-xs">
+          <AlertCircle size={28} />
+        </div>
+        <h3 className="text-base font-extrabold text-slate-900 mb-1">
+          Unable to Load Classroom Workspace
+        </h3>
+        <p className="text-xs text-slate-500 max-w-sm mb-4 leading-relaxed">
+          {error || 'We had trouble connecting to your classroom workspace. Please check your connection and tap retry.'}
+        </p>
+        <ClayButton
+          variant="teal"
+          size="sm"
+          onClick={() => {
+            setLoading(true);
+            fetchDashboard();
+          }}
+          className="flex items-center gap-2 font-bold"
+        >
+          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Retry Loading
+        </ClayButton>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -103,12 +165,12 @@ export default function StudentDashboardPage() {
               Student Academic Portal
             </span>
             <span className="font-mono text-xs text-cyan-200 font-bold px-2 py-0.5 rounded-full bg-cyan-950/60 border border-cyan-800/40">
-              {data.student.student_id}
+              {data.student?.student_id || 'STU'}
             </span>
           </div>
 
           <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight break-words bg-clip-text text-transparent bg-gradient-to-r from-white via-cyan-100 to-teal-200">
-            Hello, {data.student.name}
+            Hello, {data.student?.name || 'Student'}
           </h1>
 
           <p className="text-teal-200/90 text-xs sm:text-sm leading-relaxed">

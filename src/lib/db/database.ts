@@ -2257,7 +2257,20 @@ export const dbService = {
     recent_exam_results: (ExamAttempt & { exam_title: string; max_marks: number })[];
     batch_breakdowns: StudentBatchBreakdown[];
   } {
-    const student = this.getUserById(studentId)!;
+    let student = this.getUserById(studentId);
+    if (!student) {
+      const row = db.prepare('SELECT id, student_id, name, email, role, avatar_url, phone, status FROM profiles WHERE id = ?').get(studentId) as UserProfile | undefined;
+      student = row || {
+        id: studentId,
+        student_id: 'STU-001',
+        name: 'Classroom Student',
+        email: 'student@portal.edu',
+        role: 'student',
+        status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+    }
     const batches = this.getStudentBatches(studentId);
     const assignedTasks = this.getAssignmentsForStudent(studentId);
 

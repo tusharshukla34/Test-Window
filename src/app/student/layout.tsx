@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -247,7 +248,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
               const Icon = item.icon;
               const isActive = pathname === item.href || (item.href !== '/student/dashboard' && pathname.startsWith(item.href));
               return (
-                <a
+                <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileMenuOpen(false)}
@@ -260,7 +261,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                 >
                   <Icon size={18} className={isActive ? 'text-teal-600' : 'text-slate-400'} />
                   {item.label}
-                </a>
+                </Link>
               );
             })}
           </nav>
