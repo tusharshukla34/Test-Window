@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BookOpen, Plus, Calendar, Clock, CheckCircle, FileText, ArrowRight, Trash2 } from 'lucide-react';
 import { ClayCard, ClayButton } from '@/components/ui/ClayComponents';
+import FormattedInstructions from '@/components/ui/FormattedInstructions';
 import { Assignment } from '@/lib/db/types';
 
 let cachedAssignmentsList: (Assignment & { recipient_batch_names: string[]; submission_count: number })[] | null = null;
@@ -109,9 +110,9 @@ export default function AdminAssignmentsPage() {
                   {asg.title}
                 </h3>
 
-                <p className="text-xs text-slate-600 line-clamp-3">
-                  {asg.instructions}
-                </p>
+                <div className="pt-0.5">
+                  <FormattedInstructions compact content={asg.instructions} />
+                </div>
 
                 {/* Target Batches */}
                 <div className="pt-2">

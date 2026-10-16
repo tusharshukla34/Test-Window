@@ -13,6 +13,7 @@ import {
   GraduationCap
 } from 'lucide-react';
 import { ClayCard, ClayButton, Modal } from '@/components/ui/ClayComponents';
+import FormattedInstructions from '@/components/ui/FormattedInstructions';
 import { Batch, Assignment } from '@/lib/db/types';
 
 interface SubmissionQueueItem {
@@ -49,6 +50,7 @@ export default function SubmissionsQueuePage() {
 
   // Evaluation Modal
   const [activeSub, setActiveSub] = useState<SubmissionQueueItem | null>(null);
+  const [showQuestions, setShowQuestions] = useState(false);
   const [marks, setMarks] = useState<number | string>('');
   const [feedback, setFeedback] = useState('');
   const [releaseDraft, setReleaseDraft] = useState(true);
@@ -278,6 +280,34 @@ export default function SubmissionsQueuePage() {
                 </span>
               )}
             </div>
+
+            {/* View Assigned Questions Collapsible */}
+            {(() => {
+              const currentAsg = assignments.find((a) => a.id === activeSub.assignment_id);
+              if (!currentAsg?.instructions) return null;
+              return (
+                <div className="rounded-xl border border-slate-200 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowQuestions(!showQuestions)}
+                    className="w-full flex items-center justify-between p-2.5 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 transition"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <FileText size={13} className="text-indigo-600" />
+                      View Assignment Questions & Instructions
+                    </span>
+                    <span className="text-[11px] text-indigo-600 font-semibold">
+                      {showQuestions ? 'Hide' : 'Show Questions'}
+                    </span>
+                  </button>
+                  {showQuestions && (
+                    <div className="p-3 bg-white border-t border-slate-200">
+                      <FormattedInstructions content={currentAsg.instructions} />
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Student Text Response */}
             {activeSub.text_response && (

@@ -2,8 +2,12 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { BookOpen, Calendar, Clock, ArrowLeft, Send, CheckCircle2, ShieldCheck, Users } from 'lucide-react';
+import { 
+  BookOpen, Calendar, Clock, ArrowLeft, Send, CheckCircle2, ShieldCheck, Users,
+  Eye, Edit3, PlusCircle, List, Code, Bold, Sparkles, HelpCircle
+} from 'lucide-react';
 import { ClayCard, ClayButton } from '@/components/ui/ClayComponents';
+import FormattedInstructions from '@/components/ui/FormattedInstructions';
 import { Batch } from '@/lib/db/types';
 
 export default function CreateAssignmentPage() {
@@ -15,6 +19,7 @@ export default function CreateAssignmentPage() {
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('Mechanical Engineering');
   const [instructions, setInstructions] = useState('');
+  const [instructionsTab, setInstructionsTab] = useState<'write' | 'preview'>('write');
   const [submissionType, setSubmissionType] = useState<'both' | 'file_upload' | 'text_response'>('both');
   const [allowedFormats, setAllowedFormats] = useState<string[]>(['pdf', 'docx', 'png']);
   const [maxFileSizeMb, setMaxFileSizeMb] = useState(15);
@@ -149,18 +154,148 @@ export default function CreateAssignmentPage() {
               />
             </div>
 
+            {/* Detailed Homework Instructions & Questions */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Detailed Homework Instructions
-              </label>
-              <textarea
-                rows={6}
-                required
-                placeholder="Enter complete instructions for students, problem statements, expected deliverables, and formatting expectations..."
-                value={instructions}
-                onChange={(e) => setInstructions(e.target.value)}
-                className="clay-input w-full p-2.5 text-xs text-slate-800"
-              />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1.5">
+                <label className="block text-xs font-bold text-slate-800">
+                  Detailed Homework Instructions & Questions
+                </label>
+                
+                {/* View Mode Toggle */}
+                <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setInstructionsTab('write')}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition ${
+                      instructionsTab === 'write'
+                        ? 'bg-white text-indigo-700 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Edit3 size={12} /> Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInstructionsTab('preview')}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition ${
+                      instructionsTab === 'preview'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-indigo-600'
+                    }`}
+                  >
+                    <Eye size={12} /> Student Preview
+                  </button>
+                </div>
+              </div>
+
+              {/* Formatting Toolbar */}
+              {instructionsTab === 'write' && (
+                <div className="flex flex-wrap items-center gap-1.5 mb-2 p-2 rounded-xl bg-slate-50 border border-slate-200/90 text-xs">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+                    Quick Format:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const template = `General Instructions:
+- Read all question statements and constraints carefully before attempting.
+- Provide proper comments or derivations along with your answer.
+- Submit clean code or upload your solution document before the deadline.
+
+Q1. Write a function to solve the given problem statement.
+- Input: Array of numbers [3, 7, 2, 9, 5]
+- Expected Output: Maximum value = 9
+- Marks: [10 Marks]
+
+Q2. What is the time complexity and space complexity of your algorithm?
+- Explain your reasoning in 2-3 sentences.
+- Marks: [5 Marks]`;
+                      setInstructions((prev) => (prev.trim() ? `${prev.trimEnd()}\n\n${template}` : template));
+                    }}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[11px] border border-indigo-200 transition"
+                    title="Insert full sample assignment template with Q1, Q2, instructions"
+                  >
+                    <Sparkles size={12} className="text-indigo-600" /> + Insert Template
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const matches = instructions.match(/(?:Q\d+|Question\s*\d+|\d+[\.\)])/gi);
+                      const nextNum = (matches?.length || 0) + 1;
+                      const qBlock = `Q${nextNum}. [Enter Question Title / Problem Statement here]\n- Description & Constraints: \n- Expected Output: \n- Marks: [10 Marks]`;
+                      setInstructions((prev) => (prev.trim() ? `${prev.trimEnd()}\n\n${qBlock}` : qBlock));
+                    }}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 font-semibold text-[11px] border border-slate-200 transition shadow-2xs"
+                  >
+                    <PlusCircle size={12} className="text-emerald-600" /> + Add Question
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInstructions((prev) => (prev.trim() ? `${prev.trimEnd()}\n- ` : '- '));
+                    }}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 font-semibold text-[11px] border border-slate-200 transition shadow-2xs"
+                  >
+                    <List size={12} className="text-slate-500" /> Bullet
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const snippet = '```python\n# Paste or write code snippet here\ndef solution():\n    pass\n```';
+                      setInstructions((prev) => (prev.trim() ? `${prev.trimEnd()}\n\n${snippet}\n` : `${snippet}\n`));
+                    }}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 font-semibold text-[11px] border border-slate-200 transition shadow-2xs"
+                  >
+                    <Code size={12} className="text-purple-600" /> Code Block
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInstructions((prev) => (prev.trim() ? `${prev.trimEnd()}\n**Important:** ` : '**Important:** '));
+                    }}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 font-bold text-[11px] border border-slate-200 transition shadow-2xs"
+                  >
+                    <Bold size={12} className="text-slate-700" /> Bold
+                  </button>
+                </div>
+              )}
+
+              {/* Input Area or Live Student Preview */}
+              {instructionsTab === 'write' ? (
+                <>
+                  <textarea
+                    rows={8}
+                    required
+                    placeholder="Enter complete instructions for students, problem statements, expected deliverables, and formatting expectations...&#10;&#10;Tip: Start questions with 'Q1.', 'Q2.' or '1.' to auto-generate beautiful question cards with marks badges!"
+                    value={instructions}
+                    onChange={(e) => setInstructions(e.target.value)}
+                    className="clay-input w-full p-3 text-xs text-slate-800 font-mono leading-relaxed resize-y min-h-[160px]"
+                  />
+                  <div className="flex items-start gap-1.5 mt-2 text-[11px] text-slate-500 bg-indigo-50/50 p-2.5 rounded-lg border border-indigo-100/60">
+                    <HelpCircle size={14} className="text-indigo-600 shrink-0 mt-0.5" />
+                    <span>
+                      <strong className="text-indigo-950 font-bold">Smart Auto-Detection:</strong> Lines starting with <strong className="text-slate-800">Q1.</strong>, <strong className="text-slate-800">Q2.</strong>, or <strong className="text-slate-800">1.</strong> and markers like <strong className="text-slate-800">[10 Marks]</strong> will automatically convert into separate, styled Question Cards with badges for students. Click <strong className="text-indigo-600">Student Preview</strong> above anytime to check!
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50/20 p-4 space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-indigo-100 text-xs">
+                    <span className="font-bold text-indigo-950 flex items-center gap-1.5">
+                      <Eye size={13} className="text-indigo-600" />
+                      Live Student View (How students will see this):
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setInstructionsTab('write')}
+                      className="text-[11px] font-bold text-indigo-700 hover:underline"
+                    >
+                      ← Back to Edit
+                    </button>
+                  </div>
+                  <FormattedInstructions content={instructions} />
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">

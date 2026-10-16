@@ -14,6 +14,7 @@ import {
   MessageSquare
 } from 'lucide-react';
 import { ClayCard, ClayButton, Modal } from '@/components/ui/ClayComponents';
+import FormattedInstructions from '@/components/ui/FormattedInstructions';
 import { Assignment, AssignmentSubmission } from '@/lib/db/types';
 
 let cachedStudentAssignments: (Assignment & { submission?: AssignmentSubmission | null; batch_names?: string[] })[] | null = null;
@@ -242,9 +243,9 @@ export default function StudentAssignmentsPage() {
                   {asg.title}
                 </h3>
 
-                <p className="text-xs text-slate-600 line-clamp-3">
-                  {asg.instructions}
-                </p>
+                <div className="pt-0.5">
+                  <FormattedInstructions compact content={asg.instructions} />
+                </div>
 
                 {/* Evaluated Marks & Trainer Feedback Callout */}
                 {sub && sub.status === 'evaluated' && sub.feedback && (
@@ -302,14 +303,13 @@ export default function StudentAssignmentsPage() {
               </div>
             )}
 
-            {/* Complete Instructions */}
+            {/* Complete Instructions & Question Cards */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Instructions & Deliverables
+              <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                <span>Instructions & Problem Statements</span>
+                <span className="text-[10px] text-slate-400 font-normal">Review tasks before submitting</span>
               </label>
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">
-                {selectedAsg.instructions}
-              </div>
+              <FormattedInstructions content={selectedAsg.instructions} />
             </div>
 
             {/* Text Response */}
