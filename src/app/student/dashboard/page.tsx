@@ -20,7 +20,9 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { ClayCard, ClayCard3D, ClayButton } from '@/components/ui/ClayComponents';
-import { Academy3DHologram } from '@/components/ui/Academy3DHologram';
+import StudentHero3D from '@/components/student/StudentHero3D';
+import Student3DPerformanceCard from '@/components/student/Student3DPerformanceCard';
+import Ambient3DBackground from '@/components/ui/Ambient3DBackground';
 import { StudentBatchBreakdown } from '@/lib/db/types';
 
 interface StudentDashboardData {
@@ -154,67 +156,25 @@ export default function StudentDashboardPage() {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-300">
-      {/* Welcome Hero Banner with 3D Gyro Hologram */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-gradient-to-r from-teal-950 via-teal-900 to-cyan-950 text-white p-6 sm:p-8 rounded-3xl shadow-2xl shadow-teal-950/30 relative overflow-hidden border border-teal-700/30">
-        <div className="absolute right-0 top-0 bottom-0 w-1/2 bg-radial from-cyan-400/15 via-teal-500/5 to-transparent pointer-events-none"></div>
+    <div className="space-y-8 animate-in fade-in duration-300 relative">
+      {/* 3D Ambient Background Aura */}
+      <Ambient3DBackground />
 
-        <div className="relative z-10 space-y-2 min-w-0 max-w-xl">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] uppercase tracking-widest text-teal-300 font-bold px-2.5 py-0.5 rounded-full bg-teal-900/60 border border-teal-500/40 shadow-xs">
-              Student Academic Portal
-            </span>
-            <span className="font-mono text-xs text-cyan-200 font-bold px-2 py-0.5 rounded-full bg-cyan-950/60 border border-cyan-800/40">
-              {data.student?.student_id || 'STU'}
-            </span>
-          </div>
+      {/* Welcome Hero Banner with 3D Gyro Hologram & Parallax Tilt */}
+      <StudentHero3D
+        studentName={data.student?.name || 'Student'}
+        studentId={data.student?.student_id || 'STU'}
+        batches={data.batches}
+      />
 
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight break-words bg-clip-text text-transparent bg-gradient-to-r from-white via-cyan-100 to-teal-200">
-            Hello, {data.student?.name || 'Student'}
-          </h1>
-
-          <p className="text-teal-200/90 text-xs sm:text-sm leading-relaxed">
-            Welcome to your classroom workspace. Review daily homework tasks, submit working, and take scheduled mock examinations.
-          </p>
-
-          <div className="pt-2 flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] font-semibold text-teal-300">Assigned Batches:</span>
-            {data.batches.length === 0 ? (
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-slate-300">
-                No cohort assigned
-              </span>
-            ) : (
-              data.batches.map(b => (
-                <span key={b.id} className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white/15 text-white border border-white/20 backdrop-blur-xs shadow-xs">
-                  {b.name}
-                </span>
-              ))
-            )}
-          </div>
-
-          <div className="pt-3 flex items-center gap-3 flex-wrap">
-            <button
-              onClick={() => router.push('/student/batches')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-teal-50 text-slate-900 text-xs sm:text-sm font-extrabold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0.5 shadow-md shadow-teal-950/20 border border-white cursor-pointer"
-            >
-              <Layers size={16} className="text-teal-600" />
-              <span>My Batches</span>
-            </button>
-            <button
-              onClick={() => router.push('/student/exams')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal-400 to-cyan-400 hover:from-teal-300 hover:to-cyan-300 text-slate-950 text-xs sm:text-sm font-extrabold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-cyan-500/30 active:translate-y-0.5 shadow-md border border-cyan-200 cursor-pointer"
-            >
-              <FileCheck2 size={16} className="text-slate-950" />
-              <span>Online Examinations</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 3D Floating Gyro Hologram */}
-        <div className="hidden md:flex items-center justify-center shrink-0 relative z-10 self-center">
-          <Academy3DHologram studentName={data.student.name} />
-        </div>
-      </div>
+      {/* Gamified 3D Momentum & Performance Hub */}
+      <Student3DPerformanceCard
+        completedAssignments={data.completed_assignments}
+        pendingAssignments={data.pending_assignments}
+        completedExams={data.completed_exams}
+        upcomingExams={data.upcoming_exams}
+        recentExamAccuracy={data.recent_exam_results?.[0]?.accuracy}
+      />
 
       {/* Main Aggregate Metric Cards (All Batches Total) - With 3D Perspective Tilt & Light Sheen */}
       <div>
@@ -230,77 +190,101 @@ export default function StudentDashboardPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
           <ClayCard3D
             variant="amber"
+            glareVariant="amber"
+            maxTilt={14}
+            animatedFloat={true}
             onClick={() => router.push('/student/assignments')}
           >
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">Total Pending Tasks</span>
-              <div className="w-8 h-8 rounded-xl bg-white/80 text-amber-700 flex items-center justify-center clay-icon-bubble shadow-xs">
-                <Clock size={18} />
+              <div className="w-9 h-9 rounded-2xl bg-white/90 text-amber-700 flex items-center justify-center clay-icon-bubble shadow-xs" style={{ transform: 'translateZ(18px)' }}>
+                <Clock size={19} />
               </div>
             </div>
-            <p className="text-3xl sm:text-4xl font-extrabold text-amber-950">{data.pending_assignments}</p>
-            <p className="text-xs text-amber-700 mt-1 font-medium flex items-center gap-1">
+            <p className="text-3xl sm:text-4xl font-black text-amber-950 tracking-tight" style={{ transform: 'translateZ(24px)' }}>
+              {data.pending_assignments}
+            </p>
+            <p className="text-xs text-amber-700 mt-1 font-semibold flex items-center gap-1" style={{ transform: 'translateZ(16px)' }}>
               Homework to submit <ArrowRight size={13} />
             </p>
           </ClayCard3D>
 
           <ClayCard3D
             variant="teal"
+            glareVariant="cyan"
+            maxTilt={14}
+            animatedFloat={true}
             onClick={() => router.push('/student/exams')}
           >
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-bold text-teal-800 uppercase tracking-wider">Available Exams</span>
-              <div className="w-8 h-8 rounded-xl bg-white/80 text-teal-700 flex items-center justify-center clay-icon-bubble shadow-xs">
-                <FileCheck2 size={18} />
+              <div className="w-9 h-9 rounded-2xl bg-white/90 text-teal-700 flex items-center justify-center clay-icon-bubble shadow-xs" style={{ transform: 'translateZ(18px)' }}>
+                <FileCheck2 size={19} />
               </div>
             </div>
-            <p className="text-3xl sm:text-4xl font-extrabold text-teal-950">{data.upcoming_exams}</p>
-            <p className="text-xs text-teal-700 mt-1 font-medium flex items-center gap-1">
+            <p className="text-3xl sm:text-4xl font-black text-teal-950 tracking-tight" style={{ transform: 'translateZ(24px)' }}>
+              {data.upcoming_exams}
+            </p>
+            <p className="text-xs text-teal-700 mt-1 font-semibold flex items-center gap-1" style={{ transform: 'translateZ(16px)' }}>
               Mock exams scheduled <ArrowRight size={13} />
             </p>
           </ClayCard3D>
 
           <ClayCard3D
             variant="blue"
+            glareVariant="holographic"
+            maxTilt={14}
+            animatedFloat={true}
             onClick={() => router.push('/student/assignments')}
           >
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-bold text-blue-800 uppercase tracking-wider">Under Review</span>
-              <div className="w-8 h-8 rounded-xl bg-white/80 text-blue-700 flex items-center justify-center clay-icon-bubble shadow-xs">
-                <BookOpen size={18} />
+              <div className="w-9 h-9 rounded-2xl bg-white/90 text-blue-700 flex items-center justify-center clay-icon-bubble shadow-xs" style={{ transform: 'translateZ(18px)' }}>
+                <BookOpen size={19} />
               </div>
             </div>
-            <p className="text-3xl sm:text-4xl font-extrabold text-blue-950">{data.awaiting_evaluation}</p>
-            <p className="text-xs text-blue-700 mt-1 font-medium">Awaiting evaluation</p>
+            <p className="text-3xl sm:text-4xl font-black text-blue-950 tracking-tight" style={{ transform: 'translateZ(24px)' }}>
+              {data.awaiting_evaluation}
+            </p>
+            <p className="text-xs text-blue-700 mt-1 font-semibold" style={{ transform: 'translateZ(16px)' }}>
+              Awaiting evaluation
+            </p>
           </ClayCard3D>
 
           <ClayCard3D
             variant="purple"
+            glareVariant="purple"
+            maxTilt={14}
+            animatedFloat={true}
             onClick={() => router.push('/student/assignments')}
           >
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-bold text-purple-800 uppercase tracking-wider">Completed Tasks</span>
-              <div className="w-8 h-8 rounded-xl bg-white/80 text-purple-700 flex items-center justify-center clay-icon-bubble shadow-xs">
-                <CheckCircle2 size={18} />
+              <div className="w-9 h-9 rounded-2xl bg-white/90 text-purple-700 flex items-center justify-center clay-icon-bubble shadow-xs" style={{ transform: 'translateZ(18px)' }}>
+                <CheckCircle2 size={19} />
               </div>
             </div>
-            <p className="text-3xl sm:text-4xl font-extrabold text-purple-950">{data.completed_assignments}</p>
-            <p className="text-xs text-purple-700 mt-1 font-medium">Graded & marks awarded</p>
+            <p className="text-3xl sm:text-4xl font-black text-purple-950 tracking-tight" style={{ transform: 'translateZ(24px)' }}>
+              {data.completed_assignments}
+            </p>
+            <p className="text-xs text-purple-700 mt-1 font-semibold" style={{ transform: 'translateZ(16px)' }}>
+              Graded & marks awarded
+            </p>
           </ClayCard3D>
         </div>
       </div>
 
-      {/* Two Column Section: Homework Submissions & Exam Results */}
+      {/* Two Column Section: Homework Submissions & Exam Results with 3D Perspectives */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Homework Submissions */}
-        <ClayCard className="space-y-4">
+        <ClayCard3D variant="white" maxTilt={6} className="space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
               <BookOpen size={18} className="text-teal-600" /> Recent Daily Homework Submissions
             </h3>
             <button
               onClick={() => router.push('/student/assignments')}
-              className="text-xs text-teal-700 hover:text-teal-900 font-bold"
+              className="text-xs text-teal-700 hover:text-teal-900 font-bold hover:underline cursor-pointer"
             >
               View All
             </button>
@@ -311,22 +295,28 @@ export default function StudentDashboardPage() {
               No homework submitted yet. Check your assigned tasks.
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="space-y-2.5">
               {data.recent_submissions.map(sub => (
-                <div key={sub.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                <div
+                  key={sub.id}
+                  onClick={() => router.push('/student/assignments')}
+                  className="p-3 rounded-2xl bg-slate-50/80 hover:bg-white border border-slate-100 hover:border-teal-300 hover:shadow-md hover:-translate-y-1 transition-all duration-200 cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                >
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-slate-900 break-words">{sub.assignment_title}</p>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="text-xs font-bold text-slate-900 break-words group-hover:text-teal-700 transition">
+                      {sub.assignment_title}
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
                       Submitted on {new Date(sub.submitted_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' })}
                     </p>
                   </div>
                   <div className="self-start sm:self-auto shrink-0">
                     {sub.status === 'evaluated' ? (
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
                         Evaluated ({sub.marks_awarded} pts)
                       </span>
                     ) : (
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs">
                         Under Review
                       </span>
                     )}
@@ -335,17 +325,17 @@ export default function StudentDashboardPage() {
               ))}
             </div>
           )}
-        </ClayCard>
+        </ClayCard3D>
 
         {/* Released Exam Results */}
-        <ClayCard className="space-y-4">
+        <ClayCard3D variant="white" maxTilt={6} className="space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
               <Trophy size={18} className="text-amber-500" /> My Examination Results
             </h3>
             <button
               onClick={() => router.push('/student/exams')}
-              className="text-xs text-teal-700 hover:text-teal-900 font-bold"
+              className="text-xs text-teal-700 hover:text-teal-900 font-bold hover:underline cursor-pointer"
             >
               Exams Portal
             </button>
@@ -356,9 +346,13 @@ export default function StudentDashboardPage() {
               No completed examination results available yet.
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {data.recent_exam_results.map(res => (
-                <div key={res.id} className="p-3 sm:p-3.5 rounded-xl bg-slate-50 border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div
+                  key={res.id}
+                  onClick={() => router.push(`/student/exams/${res.id}/result`)}
+                  className="p-3 sm:p-3.5 rounded-2xl bg-slate-50/80 hover:bg-white border border-slate-100 hover:border-amber-300 hover:shadow-md hover:-translate-y-1 transition-all duration-200 cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                >
                   <div className="min-w-0">
                     <h4 className="text-xs font-bold text-slate-900 break-words">{res.exam_title}</h4>
                     <p className="text-[11px] text-slate-500 mt-0.5">
@@ -369,13 +363,13 @@ export default function StudentDashboardPage() {
                     <span className="text-base font-black text-emerald-700 font-mono">
                       {res.total_score} / {res.max_marks}
                     </span>
-                    <p className="text-[10px] text-slate-400 font-semibold">{res.percentage}%</p>
+                    <p className="text-[10px] text-slate-400 font-bold">{res.percentage}%</p>
                   </div>
                 </div>
               ))}
             </div>
           )}
-        </ClayCard>
+        </ClayCard3D>
       </div>
     </div>
   );
