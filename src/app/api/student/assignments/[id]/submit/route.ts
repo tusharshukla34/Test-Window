@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireStudent } from '@/lib/auth';
 import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

@@ -1199,6 +1199,17 @@ export const dbService = {
       throw new Error('Late submissions are not permitted for this assignment');
     }
 
+    // Check if an evaluated submission already exists
+    const existingEvaluated = db.prepare(`
+      SELECT id, status FROM assignment_submissions
+      WHERE assignment_id = ? AND student_id = ? AND status = 'evaluated'
+      LIMIT 1
+    `).get(data.assignment_id, data.student_id);
+
+    if (existingEvaluated) {
+      throw new Error('This assignment has already been evaluated and graded by Trainer Shukla. Resubmission is closed.');
+    }
+
     // Check version
     const existing = db.prepare(`
       SELECT max(version) as max_v FROM assignment_submissions
