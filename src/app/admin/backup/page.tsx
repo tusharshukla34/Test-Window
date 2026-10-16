@@ -354,6 +354,39 @@ export default function AdminBackupPage() {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    // 5. Send Email Notifications (Only for Task Assignment & Exam Scheduling)
+    if (action === "send_email_notification") {
+      var recipients = data.recipients || [];
+      var subject = data.subject || "Academic Portal Notification";
+      var htmlBody = data.html_body || "";
+      var sentCount = 0;
+
+      for (var i = 0; i < recipients.length; i++) {
+        var toEmail = typeof recipients[i] === 'string' ? recipients[i] : (recipients[i].email || "");
+        toEmail = toEmail.trim();
+        if (toEmail && toEmail.indexOf("@") > 0) {
+          try {
+            MailApp.sendEmail({
+              to: toEmail,
+              subject: subject,
+              htmlBody: htmlBody
+            });
+            sentCount++;
+          } catch (mailErr) {
+            Logger.log("Failed to send email to " + toEmail + ": " + mailErr);
+          }
+        }
+      }
+
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        type: "emails_sent",
+        count: sentCount,
+        sheet_url: sheetUrl,
+        sheet_title: sheetTitle
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     return ContentService.createTextOutput(JSON.stringify({ status: "ignored" }))
       .setMimeType(ContentService.MimeType.JSON);
 

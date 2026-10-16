@@ -47,20 +47,49 @@ export async function POST(req: NextRequest) {
       created_by: session.userId
     });
 
-    // Notify students in assigned batches
+    // Notify students in assigned batches and collect recipient emails
+    const studentRecipientsMap = new Map<string, { name: string; email: string; student_id?: string | null }>();
+    const batchNamesList: string[] = [];
+
     for (const bId of batch_ids) {
       const batchData = dbService.getBatchById(bId);
-      if (batchData && batchData.students) {
-        for (const stu of batchData.students) {
-          dbService.createNotification({
-            user_id: stu.id,
-            title: 'New Online Examination Scheduled',
-            message: `Trainer Tushar Shukla scheduled "${title}" (${duration_minutes} mins) for your batch.`,
-            type: 'exam',
-            link: `/student/exams/${exam.id}/instructions`
-          });
+      if (batchData) {
+        batchNamesList.push(batchData.name);
+        if (batchData.students) {
+          for (const stu of batchData.students) {
+            dbService.createNotification({
+              user_id: stu.id,
+              title: 'New Online Examination Scheduled',
+              message: `Trainer Tushar Shukla scheduled "${title}" (${duration_minutes} mins) for your batch.`,
+              type: 'exam',
+              link: `/student/exams/${exam.id}/instructions`
+            });
+            if (stu.email) {
+              studentRecipientsMap.set(stu.id, {
+                name: stu.name,
+                email: stu.email,
+                student_id: stu.student_id
+              });
+            }
+          }
         }
       }
+    }
+
+    // Email Notification via Google Apps Script (Non-blocking)
+    try {
+      const { sendExamScheduledEmail } = await import('@/lib/services/emailNotifications');
+      sendExamScheduledEmail({
+        title,
+        description,
+        durationMinutes: Number(duration_minutes) || 20,
+        totalQuestions: question_ids.length,
+        negativeMarking: Number(negative_marking) || 0.25,
+        batchNames: batchNamesList.length > 0 ? batchNamesList : batch_ids,
+        recipients: Array.from(studentRecipientsMap.values())
+      }).catch(err => console.warn('[Exam Email Sync]:', err));
+    } catch (emailErr) {
+      console.warn('[Exam Email Error]:', emailErr);
     }
 
     await syncDatabaseToCloud();

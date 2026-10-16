@@ -54,21 +54,49 @@ export async function POST(req: NextRequest) {
       batch_ids
     });
 
-    // Notify all students in the assigned batches
-    const allStudents = dbService.getAllStudents();
+    // Notify all students in the assigned batches and collect recipient emails
+    const studentRecipientsMap = new Map<string, { name: string; email: string; student_id?: string | null }>();
+    const batchNamesList: string[] = [];
+
     for (const bId of batch_ids) {
       const batchData = dbService.getBatchById(bId);
-      if (batchData && batchData.students) {
-        for (const stu of batchData.students) {
-          dbService.createNotification({
-            user_id: stu.id,
-            title: 'New Daily Homework Assigned',
-            message: `Trainer Tushar Shukla assigned "${title}" for batch ${batchData.name}.`,
-            type: 'assignment',
-            link: `/student/assignments/${assignment.id}`
-          });
+      if (batchData) {
+        batchNamesList.push(batchData.name);
+        if (batchData.students) {
+          for (const stu of batchData.students) {
+            dbService.createNotification({
+              user_id: stu.id,
+              title: 'New Daily Homework Assigned',
+              message: `Trainer Tushar Shukla assigned "${title}" for batch ${batchData.name}.`,
+              type: 'assignment',
+              link: `/student/assignments/${assignment.id}`
+            });
+            if (stu.email) {
+              studentRecipientsMap.set(stu.id, {
+                name: stu.name,
+                email: stu.email,
+                student_id: stu.student_id
+              });
+            }
+          }
         }
       }
+    }
+
+    // Email Notification via Google Apps Script (Non-blocking)
+    try {
+      const { sendTaskAssignedEmail } = await import('@/lib/services/emailNotifications');
+      sendTaskAssignedEmail({
+        title,
+        subject,
+        instructions,
+        deadline,
+        maxScore: Number(max_score) || 100,
+        batchNames: batchNamesList.length > 0 ? batchNamesList : batch_ids,
+        recipients: Array.from(studentRecipientsMap.values())
+      }).catch(err => console.warn('[Task Email Sync]:', err));
+    } catch (emailErr) {
+      console.warn('[Task Email Error]:', emailErr);
     }
 
     await syncDatabaseToCloud();
