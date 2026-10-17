@@ -511,9 +511,14 @@ export default function StudentAssignmentsPage() {
                           <p className="text-xs font-bold text-slate-800">
                             {selectedFile ? selectedFile.name : 'Click to select or drag and drop your file here'}
                           </p>
-                          <p className="text-[10px] text-slate-400">
-                            Allowed formats: {selectedAsg.allowed_formats.join(', ')} (Max {selectedAsg.max_file_size_mb} MB)
+                          <p className="text-[10px] text-slate-500 font-mono">
+                            Allowed formats: {selectedAsg.allowed_formats.map(f => f.startsWith('.') ? f : '.' + f).join(', ')} (Max {selectedAsg.max_file_size_mb} MB)
                           </p>
+                          {selectedAsg.allowed_formats.some(f => ['ipynb', 'py', 'code', 'zip', 'java', 'cpp', 'js', 'ts'].includes(f.replace(/^\./, '').toLowerCase())) && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200 mt-1">
+                              📓 Jupyter Notebook (.ipynb) &amp; Code files supported
+                            </span>
+                          )}
                         </div>
                       </div>
 

@@ -49,7 +49,10 @@ export async function GET(
     } else if (ext === 'pdf') {
       mimeType = 'application/pdf';
       isInline = true;
-    } else if (ext === 'txt') {
+    } else if (ext === 'ipynb') {
+      mimeType = 'application/json';
+      isInline = true;
+    } else if (['txt', 'py', 'pyw', 'r', 'java', 'c', 'cpp', 'cc', 'h', 'hpp', 'cs', 'js', 'jsx', 'ts', 'tsx', 'html', 'htm', 'css', 'scss', 'sql', 'json', 'xml', 'yaml', 'yml', 'toml', 'sh', 'bash', 'md'].includes(ext)) {
       mimeType = 'text/plain';
       isInline = true;
     }

@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
       subject,
       instructions,
       submission_type: submission_type || 'both',
-      allowed_formats: allowed_formats || ['pdf', 'docx', 'png'],
+      allowed_formats: allowed_formats || ['pdf', 'docx', 'png', 'ipynb', 'py', 'zip'],
       max_file_size_mb: Number(max_file_size_mb) || 10,
       max_score: Number(max_score) || 100,
       rubric,

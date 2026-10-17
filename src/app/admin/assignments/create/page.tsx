@@ -21,7 +21,8 @@ export default function CreateAssignmentPage() {
   const [instructions, setInstructions] = useState('');
   const [instructionsTab, setInstructionsTab] = useState<'write' | 'preview'>('write');
   const [submissionType, setSubmissionType] = useState<'both' | 'file_upload' | 'text_response'>('both');
-  const [allowedFormats, setAllowedFormats] = useState<string[]>(['pdf', 'docx', 'png']);
+  const [allowedFormats, setAllowedFormats] = useState<string[]>(['pdf', 'docx', 'png', 'ipynb', 'py']);
+  const [customFormatInput, setCustomFormatInput] = useState('');
   const [maxFileSizeMb, setMaxFileSizeMb] = useState(15);
   const [maxScore, setMaxScore] = useState(50);
   const [rubric, setRubric] = useState('');
@@ -90,7 +91,35 @@ export default function CreateAssignmentPage() {
     }
   };
 
-  const allFormats = ['pdf', 'docx', 'xlsx', 'csv', 'txt', 'png', 'jpg'];
+  const standardFormats = ['pdf', 'docx', 'xlsx', 'csv', 'txt', 'png', 'jpg'];
+  const codingFormats = ['ipynb', 'py', 'java', 'cpp', 'c', 'cs', 'js', 'ts', 'html', 'css', 'sql', 'json', 'zip'];
+  const [availableFormats, setAvailableFormats] = useState<string[]>([
+    'pdf', 'docx', 'xlsx', 'csv', 'txt', 'png', 'jpg',
+    'ipynb', 'py', 'java', 'cpp', 'c', 'cs', 'js', 'ts', 'html', 'css', 'sql', 'json', 'zip'
+  ]);
+
+  const handleAddCustomFormat = () => {
+    const clean = customFormatInput.trim().replace(/^\./, '').toLowerCase();
+    if (clean) {
+      if (!availableFormats.includes(clean)) {
+        setAvailableFormats(prev => [...prev, clean]);
+      }
+      if (!allowedFormats.includes(clean)) {
+        setAllowedFormats(prev => [...prev, clean]);
+      }
+      setCustomFormatInput('');
+    }
+  };
+
+  const handleSelectAllCoding = () => {
+    const toAdd = codingFormats.filter(f => !allowedFormats.includes(f));
+    setAllowedFormats(prev => [...prev, ...toAdd]);
+  };
+
+  const handleSelectAllDocuments = () => {
+    const toAdd = standardFormats.filter(f => !allowedFormats.includes(f));
+    setAllowedFormats(prev => [...prev, ...toAdd]);
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -331,31 +360,143 @@ Q2. What is the time complexity and space complexity of your algorithm?
 
             {/* Allowed Formats */}
             {submissionType !== 'text_response' && (
-              <div className="pt-2">
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Allowed Attachment Formats
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {allFormats.map(fmt => (
+              <div className="pt-2 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Allowed Attachment Formats
+                  </label>
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <button
-                      key={fmt}
                       type="button"
-                      onClick={() => {
-                        if (allowedFormats.includes(fmt)) {
-                          setAllowedFormats(allowedFormats.filter(f => f !== fmt));
-                        } else {
-                          setAllowedFormats([...allowedFormats, fmt]);
+                      onClick={handleSelectAllCoding}
+                      className="text-[11px] font-bold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md transition cursor-pointer"
+                    >
+                      + All Code &amp; Notebooks
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSelectAllDocuments}
+                      className="text-[11px] font-bold text-indigo-700 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2 py-0.5 rounded-md transition cursor-pointer"
+                    >
+                      + All Docs
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAllowedFormats(availableFormats)}
+                      className="text-[11px] font-bold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-md transition cursor-pointer"
+                    >
+                      Select All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAllowedFormats([])}
+                      className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded-md transition cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                {/* Notebooks & Coding Formats Group */}
+                <div className="space-y-1.5 p-2.5 rounded-xl bg-amber-50/60 border border-amber-200/80">
+                  <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-amber-950">
+                    <Code size={13} className="text-amber-600" />
+                    <span>Jupyter Notebooks &amp; Coding Files</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {availableFormats
+                      .filter(fmt => codingFormats.includes(fmt) || (!standardFormats.includes(fmt) && !['pdf', 'docx', 'xlsx', 'csv', 'txt', 'png', 'jpg'].includes(fmt)))
+                      .map(fmt => {
+                        const isSelected = allowedFormats.includes(fmt);
+                        const isNotebook = fmt === 'ipynb';
+                        return (
+                          <button
+                            key={fmt}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                setAllowedFormats(allowedFormats.filter(f => f !== fmt));
+                              } else {
+                                setAllowedFormats([...allowedFormats, fmt]);
+                              }
+                            }}
+                            className={`px-2.5 py-1 text-xs font-mono font-bold rounded-lg border transition cursor-pointer ${
+                              isSelected
+                                ? isNotebook
+                                  ? 'bg-amber-600 text-white border-amber-600 shadow-xs ring-1 ring-amber-500'
+                                  : 'bg-indigo-600 text-white border-indigo-600'
+                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            .{fmt} {isNotebook && '📓'}
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+
+                {/* Documents & Media Group */}
+                <div className="space-y-1.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                  <div className="text-[11px] font-bold text-slate-700">
+                    Documents &amp; Images
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {availableFormats
+                      .filter(fmt => standardFormats.includes(fmt))
+                      .map(fmt => {
+                        const isSelected = allowedFormats.includes(fmt);
+                        return (
+                          <button
+                            key={fmt}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                setAllowedFormats(allowedFormats.filter(f => f !== fmt));
+                              } else {
+                                setAllowedFormats([...allowedFormats, fmt]);
+                              }
+                            }}
+                            className={`px-2.5 py-1 text-xs font-mono font-bold rounded-lg border transition cursor-pointer ${
+                              isSelected
+                                ? 'bg-indigo-600 text-white border-indigo-600'
+                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            .{fmt}
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+
+                {/* Add Custom Extension Inline */}
+                <div className="flex items-center gap-2 pt-1 flex-wrap">
+                  <div className="flex items-center rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500">
+                    <span className="text-slate-400 font-mono font-bold mr-0.5">.</span>
+                    <input
+                      type="text"
+                      value={customFormatInput}
+                      onChange={e => setCustomFormatInput(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddCustomFormat();
                         }
                       }}
-                      className={`px-2.5 py-1 text-xs font-bold rounded-lg border transition ${
-                        allowedFormats.includes(fmt)
-                          ? 'bg-indigo-600 text-white border-indigo-600'
-                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      .{fmt}
-                    </button>
-                  ))}
+                      placeholder="custom ext (e.g. r, go, rs)"
+                      className="w-36 outline-none text-xs text-slate-800 font-mono"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddCustomFormat}
+                    className="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition cursor-pointer"
+                  >
+                    + Add Ext
+                  </button>
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    Active: <strong className="text-indigo-700">{allowedFormats.length}</strong> formats selected
+                  </span>
                 </div>
               </div>
             )}

@@ -4,7 +4,103 @@ import { getUploadsDir } from '@/lib/db/database';
 import fs from 'fs';
 import path from 'path';
 
-const ALLOWED_EXTENSIONS = new Set(['pdf', 'docx', 'xlsx', 'csv', 'txt', 'png', 'jpg', 'jpeg']);
+const ALLOWED_EXTENSIONS = new Set([
+  // Notebooks & Data Science (Requested: .ipynb and code files)
+  'ipynb',
+  'py',
+  'pyw',
+  'r',
+  'rmd',
+  'csv',
+  'tsv',
+  'xlsx',
+  'xls',
+
+  // Programming Languages & Code
+  'java',
+  'class',
+  'jar',
+  'c',
+  'cpp',
+  'cc',
+  'cxx',
+  'h',
+  'hpp',
+  'cs',
+  'go',
+  'rs',
+  'rb',
+  'php',
+  'swift',
+  'kt',
+  'kts',
+  'dart',
+  'scala',
+  'lua',
+  'pl',
+  'pm',
+  'm',
+  'asm',
+
+  // Web & Scripting
+  'js',
+  'jsx',
+  'mjs',
+  'cjs',
+  'ts',
+  'tsx',
+  'html',
+  'htm',
+  'css',
+  'scss',
+  'sass',
+  'less',
+  'vue',
+  'svelte',
+  'sh',
+  'bash',
+  'zsh',
+  'ps1',
+  'bat',
+  'cmd',
+
+  // Database & Config
+  'sql',
+  'db',
+  'sqlite',
+  'sqlite3',
+  'prisma',
+  'json',
+  'xml',
+  'yaml',
+  'yml',
+  'toml',
+  'ini',
+  'txt',
+  'md',
+  'markdown',
+  'log',
+
+  // Code Packages & Archives
+  'zip',
+  'rar',
+  '7z',
+  'tar',
+  'gz',
+
+  // Documents & Images
+  'pdf',
+  'docx',
+  'doc',
+  'pptx',
+  'ppt',
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'webp',
+  'svg'
+]);
 const MAX_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
 
 export async function POST(req: NextRequest) {

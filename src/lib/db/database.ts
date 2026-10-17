@@ -195,7 +195,7 @@ function initSchema() {
       subject TEXT NOT NULL,
       instructions TEXT NOT NULL,
       submission_type TEXT NOT NULL CHECK (submission_type IN ('file_upload', 'text_response', 'both')),
-      allowed_formats TEXT NOT NULL DEFAULT 'pdf,docx,xlsx,csv,txt,png,jpg',
+      allowed_formats TEXT NOT NULL DEFAULT 'pdf,docx,xlsx,csv,txt,png,jpg,ipynb,py,java,cpp,c,cs,js,ts,html,css,sql,json,zip',
       max_file_size_mb INTEGER NOT NULL DEFAULT 10,
       max_score REAL NOT NULL DEFAULT 100,
       rubric TEXT,
@@ -387,6 +387,17 @@ function initSchema() {
   try { db.exec(`ALTER TABLE attempt_responses ADD COLUMN manual_marks REAL`); } catch {}
   try { db.exec(`ALTER TABLE attempt_responses ADD COLUMN teacher_remarks TEXT`); } catch {}
   try { db.exec(`ALTER TABLE attempt_responses ADD COLUMN descriptive_answer TEXT`); } catch {}
+
+  // Ensure assignments table includes ipynb and coding formats
+  try {
+    const existingAsgs = db.prepare(`SELECT id, allowed_formats FROM assignments`).all() as { id: string; allowed_formats: string }[];
+    for (const asg of existingAsgs) {
+      if (asg.allowed_formats && !asg.allowed_formats.includes('ipynb')) {
+        const expanded = `${asg.allowed_formats},ipynb,py,java,cpp,c,cs,js,ts,html,css,sql,json,zip`;
+        db.prepare(`UPDATE assignments SET allowed_formats = ? WHERE id = ?`).run(expanded, asg.id);
+      }
+    }
+  } catch {}
 
   // Ensure Admin credentials (ID: Tushar1234, Password: Tushar@0963)
   try {
