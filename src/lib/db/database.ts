@@ -358,6 +358,20 @@ function initSchema() {
       value TEXT NOT NULL,
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS student_feedback (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+      category TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      device_info TEXT,
+      page_url TEXT,
+      status TEXT NOT NULL DEFAULT 'open',
+      admin_note TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // Dynamic schema migrations for manual evaluation & publishing
@@ -3155,5 +3169,86 @@ export const dbService = {
       return process.env.GOOGLE_SHEET_WEBHOOK_URL.trim();
     }
     return null;
+  },
+
+  createFeedback(data: {
+    user_id: string;
+    category: string;
+    title: string;
+    description: string;
+    device_info?: string;
+    page_url?: string;
+  }): { id: string; success: boolean } {
+    const id = `fb-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    db.prepare(`
+      INSERT INTO student_feedback (id, user_id, category, title, description, device_info, page_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      data.user_id,
+      data.category,
+      data.title,
+      data.description,
+      data.device_info || null,
+      data.page_url || null
+    );
+
+    // Automatically trigger notification to all Trainer/Admin users
+    try {
+      const admins = db.prepare(`SELECT id FROM profiles WHERE role = 'admin'`).all() as { id: string }[];
+      const user = this.getUserById(data.user_id);
+      const studentName = user?.name || 'A student';
+      const categoryIcon = data.category === 'bug' ? '🐛' : data.category === 'suggestion' ? '💡' : '📝';
+
+      for (const admin of admins) {
+        this.createNotification({
+          user_id: admin.id,
+          title: `${categoryIcon} Student Report: ${data.title.slice(0, 35)}`,
+          message: `${studentName} reported: "${data.description.slice(0, 100)}"`,
+          type: 'system',
+          link: '/admin/dashboard'
+        });
+      }
+    } catch (notifErr) {
+      console.warn('[FEEDBACK ADMIN NOTIFICATION WARN]:', notifErr);
+    }
+
+    return { id, success: true };
+  },
+
+  getStudentFeedbacks(userId: string) {
+    try {
+      return db.prepare(`
+        SELECT * FROM student_feedback 
+        WHERE user_id = ? 
+        ORDER BY created_at DESC 
+        LIMIT 25
+      `).all(userId);
+    } catch {
+      return [];
+    }
+  },
+
+  getAllFeedbacks(limit = 50) {
+    try {
+      return db.prepare(`
+        SELECT f.*, p.name as student_name, p.student_id, p.email as student_email
+        FROM student_feedback f
+        LEFT JOIN profiles p ON f.user_id = p.id
+        ORDER BY f.created_at DESC
+        LIMIT ?
+      `).all(limit);
+    } catch {
+      return [];
+    }
+  },
+
+  updateFeedbackStatus(id: string, status: string, admin_note?: string): boolean {
+    const res = db.prepare(`
+      UPDATE student_feedback 
+      SET status = ?, admin_note = coalesce(?, admin_note), updated_at = datetime('now')
+      WHERE id = ?
+    `).run(status, admin_note || null, id);
+    return res.changes > 0;
   }
 };

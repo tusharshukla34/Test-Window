@@ -13,9 +13,11 @@ import {
   GraduationCap,
   Menu,
   X,
-  Layers
+  Layers,
+  Bug
 } from 'lucide-react';
 import StudentProfileModal from '@/components/student/StudentProfileModal';
+import StudentFeedbackModal from '@/components/student/StudentFeedbackModal';
 
 interface StudentUser {
   id?: string;
@@ -33,6 +35,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
   const [user, setUser] = useState<StudentUser | null>(null);
   const [notifications, setNotifications] = useState<{ id: string; title: string; message: string; is_read: boolean }[]>([]);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
@@ -173,6 +176,14 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
         </button>
 
         <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={() => setFeedbackModalOpen(true)}
+            className="p-2 text-amber-700 hover:text-amber-900 hover:bg-amber-50 rounded-lg transition cursor-pointer"
+            title="Report Bug / Feedback"
+          >
+            <Bug size={18} />
+          </button>
+
           <div className="relative" ref={mobileNotifRef}>
             <button
               onClick={() => setShowNotifDropdown(!showNotifDropdown)}
@@ -324,6 +335,16 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Feedback / Bug Report Button */}
+            <button
+              onClick={() => setFeedbackModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 text-xs font-bold transition shadow-2xs cursor-pointer"
+              title="Report an error or send feedback"
+            >
+              <Bug size={14} className="text-amber-600 animate-pulse" />
+              <span>Feedback / Report Bug</span>
+            </button>
+
             {/* Notification Bell with Outside-Click-to-Close */}
             <div className="relative" ref={notifRef}>
               <button
@@ -410,6 +431,13 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
             return next;
           });
         }}
+      />
+
+      {/* Student Feedback & Bug Report Modal */}
+      <StudentFeedbackModal
+        isOpen={feedbackModalOpen}
+        onClose={() => setFeedbackModalOpen(false)}
+        studentName={user?.name}
       />
     </div>
   );

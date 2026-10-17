@@ -2,16 +2,17 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Layers, FileCheck2, Sparkles, Orbit, Compass, Award } from 'lucide-react';
+import { Layers, FileCheck2, Sparkles, Orbit, Compass, Award, Bug } from 'lucide-react';
 import { Academy3DHologram } from '@/components/ui/Academy3DHologram';
 
 interface StudentHero3DProps {
   studentName: string;
   studentId: string;
   batches: { id: string; name: string }[];
+  onOpenFeedback?: () => void;
 }
 
-export default function StudentHero3D({ studentName, studentId, batches }: StudentHero3DProps) {
+export default function StudentHero3D({ studentName, studentId, batches, onOpenFeedback }: StudentHero3DProps) {
   const router = useRouter();
   const heroRef = useRef<HTMLDivElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -170,6 +171,15 @@ export default function StudentHero3D({ studentName, studentId, batches }: Stude
               <FileCheck2 size={16} className="text-slate-950 group-hover:scale-110 transition-transform" />
               <span>Launch Exams</span>
             </button>
+            {onOpenFeedback && (
+              <button
+                onClick={onOpenFeedback}
+                className="group inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-400/40 text-xs sm:text-sm font-black backdrop-blur-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-amber-500/20 active:translate-y-0.5 shadow-lg cursor-pointer"
+              >
+                <Bug size={15} className="text-amber-400 group-hover:rotate-12 transition-transform" />
+                <span>Report Bug / Feedback</span>
+              </button>
+            )}
           </div>
         </div>
 

@@ -1,6 +1,23 @@
 export type UserRole = 'admin' | 'student';
 export type AccountStatus = 'active' | 'inactive';
 
+export interface FeedbackRecord {
+  id: string;
+  user_id: string;
+  category: 'bug' | 'dashboard' | 'assignment' | 'exam' | 'suggestion' | 'other';
+  title: string;
+  description: string;
+  device_info?: string | null;
+  page_url?: string | null;
+  status: 'open' | 'in_progress' | 'resolved';
+  admin_note?: string | null;
+  created_at: string;
+  updated_at: string;
+  student_name?: string;
+  student_id?: string | null;
+  student_email?: string;
+}
+
 export interface UserProfile {
   id: string;
   student_id: string | null;
