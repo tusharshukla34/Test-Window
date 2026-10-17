@@ -21,14 +21,14 @@ export async function POST(req: NextRequest) {
     if (expectedRole === 'student') {
       if (cleanIdentifier.includes('@')) {
         return NextResponse.json({
-          error: 'Email login is strictly disabled for students. Please log in using your assigned Student ID (e.g. STU-2026-002).'
+          error: 'Please log in using your Student ID.'
         }, { status: 400 });
       }
 
       user = dbService.getUserByStudentId(cleanIdentifier);
       if (!user) {
         return NextResponse.json({
-          error: 'No student found with this Student ID. Please check your assigned ID (e.g. STU-2026-002).'
+          error: 'No student account found with this Student ID.'
         }, { status: 401 });
       }
 

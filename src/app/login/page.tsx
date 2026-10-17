@@ -22,7 +22,7 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     if (roleTab === 'student' && identifier.includes('@')) {
-      setError('Email login is disabled for students. Please enter your official Student ID (e.g. STU-2026-002).');
+      setError('Please enter your Student ID to log in.');
       return;
     }
 
@@ -118,20 +118,15 @@ export default function LoginPage() {
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
-                <span>{roleTab === 'admin' ? 'Trainer ID or Registered Email' : 'Official Student ID'}</span>
-                {roleTab === 'student' && (
-                  <span className="text-[10px] text-teal-700 font-bold uppercase tracking-wider bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
-                    ID Only • No Email
-                  </span>
-                )}
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                {roleTab === 'admin' ? 'Trainer ID or Registered Email' : 'Student ID'}
               </label>
               <div className="relative">
                 <input
                   type="text"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder={roleTab === 'admin' ? 'Tushar1234 or your email' : 'e.g. STU-2026-002'}
+                  placeholder={roleTab === 'admin' ? 'Tushar1234 or your email' : 'Enter Student ID'}
                   required
                   className="clay-input w-full pl-9 pr-3 py-2.5 text-sm font-semibold text-slate-800 font-mono"
                 />
@@ -139,11 +134,6 @@ export default function LoginPage() {
                   {roleTab === 'admin' ? <Mail size={16} /> : <IdCard size={16} className="text-teal-600" />}
                 </div>
               </div>
-              {roleTab === 'student' && (
-                <p className="text-[11px] text-slate-500 mt-1 font-medium">
-                  Enter your assigned Student ID (e.g. <strong className="text-teal-800 font-mono">STU-2026-002</strong>). Email address cannot be used to log in.
-                </p>
-              )}
             </div>
 
             <div>
