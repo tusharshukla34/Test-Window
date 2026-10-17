@@ -21,6 +21,8 @@ export default function LoginPage() {
   };
 
   const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+
     if (roleTab === 'student' && identifier.includes('@')) {
       setError('Please enter your Student ID to log in.');
       return;
@@ -52,11 +54,20 @@ export default function LoginPage() {
         throw new Error(data?.error || data?.message || `Authentication failed (HTTP ${res.status}). Please try again.`);
       }
 
-      router.push(data.redirectTo || (roleTab === 'admin' ? '/admin/dashboard' : '/student/dashboard'));
-      router.refresh();
+      if (data.user) {
+        try {
+          if (data.user.role === 'admin') {
+            localStorage.setItem('admin_portal_user', JSON.stringify(data.user));
+          } else {
+            localStorage.setItem('student_portal_user', JSON.stringify(data.user));
+          }
+        } catch {}
+      }
+
+      const destination = data.redirectTo || (roleTab === 'admin' ? '/admin/dashboard' : '/student/dashboard');
+      window.location.href = destination;
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed');
-    } finally {
       setLoading(false);
     }
   };

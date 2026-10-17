@@ -86,12 +86,14 @@ export async function POST(req: NextRequest) {
       redirectTo: user.role === 'admin' ? '/admin/dashboard' : '/student/dashboard'
     });
 
+    const isHttps = req.headers.get('x-forwarded-proto') === 'https' || req.nextUrl.protocol === 'https:';
+
     // Set HTTP-only cookie
     response.cookies.set({
       name: COOKIE_NAME,
       value: token,
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isHttps,
       sameSite: 'lax',
       path: '/',
       maxAge: 7 * 24 * 60 * 60 // 7 days
