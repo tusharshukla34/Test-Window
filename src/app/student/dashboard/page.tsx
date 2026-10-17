@@ -68,6 +68,7 @@ export default function StudentDashboardPage() {
   const [loading, setLoading] = useState(!cachedStudentDashboard);
   const [error, setError] = useState<string | null>(null);
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
+  const [currentStudent, setCurrentStudent] = useState<{ name: string; student_id: string } | null>(null);
 
   const fetchDashboard = () => {
     fetch(`/api/student/dashboard?_t=${Date.now()}`, { cache: 'no-store' })
@@ -103,20 +104,45 @@ export default function StudentDashboardPage() {
   };
 
   useEffect(() => {
-    if (cachedStudentDashboard) {
-      setData(cachedStudentDashboard);
-      setLoading(false);
-    } else {
-      try {
-        const saved = localStorage.getItem('student_dashboard_cache');
-        if (saved) {
+    // Evict any stale cache holding the old fallback "Classroom Student"
+    if (cachedStudentDashboard && (!cachedStudentDashboard.student?.name || cachedStudentDashboard.student.name === 'Classroom Student')) {
+      cachedStudentDashboard = null;
+    }
+
+    try {
+      const saved = localStorage.getItem('student_dashboard_cache');
+      if (saved) {
+        if (saved.includes('Classroom Student')) {
+          localStorage.removeItem('student_dashboard_cache');
+        } else {
           const parsed = JSON.parse(saved);
           cachedStudentDashboard = parsed;
           setData(parsed);
           setLoading(false);
         }
-      } catch {}
-    }
+      }
+    } catch {}
+
+    // Check client-side student user session
+    try {
+      const savedUser = localStorage.getItem('student_portal_user');
+      if (savedUser) {
+        const u = JSON.parse(savedUser);
+        if (u && u.name && u.name !== 'Classroom Student') {
+          setCurrentStudent(u);
+        }
+      }
+    } catch {}
+
+    // Always fetch fresh auth user info to ensure real student name is displayed
+    fetch(`/api/auth/me?_t=${Date.now()}`, { cache: 'no-store' })
+      .then(res => res.json())
+      .then(d => {
+        if (d && d.user && d.user.name && d.user.name !== 'Classroom Student') {
+          setCurrentStudent(d.user);
+        }
+      })
+      .catch(() => {});
 
     fetchDashboard();
   }, []);
@@ -164,8 +190,14 @@ export default function StudentDashboardPage() {
 
       {/* Welcome Hero Banner with 3D Gyro Hologram & Parallax Tilt */}
       <StudentHero3D
-        studentName={data.student?.name || 'Student'}
-        studentId={data.student?.student_id || 'STU'}
+        studentName={
+          (currentStudent?.name && currentStudent.name !== 'Classroom Student')
+            ? currentStudent.name
+            : (data.student?.name && data.student.name !== 'Classroom Student')
+            ? data.student.name
+            : (currentStudent?.student_id || data.student?.student_id || 'Student')
+        }
+        studentId={currentStudent?.student_id || data.student?.student_id || 'STU'}
         batches={data.batches}
         onOpenFeedback={() => setFeedbackModalOpen(true)}
       />

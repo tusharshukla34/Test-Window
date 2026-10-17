@@ -10,6 +10,18 @@ export async function GET() {
     const session = await requireStudent();
     await ensureCloudSyncReady();
     const stats = dbService.getStudentDashboardStats(session.userId);
+
+    // Ensure student details always accurately match the authenticated session's real name and ID
+    const studentProfile = dbService.getUserById(session.userId)
+      || (session.studentId ? dbService.getUserByStudentId(session.studentId) : null)
+      || (session.email ? dbService.getUserByEmail(session.email) : null);
+
+    if (stats && stats.student) {
+      stats.student.name = studentProfile?.name || session.name || stats.student.name;
+      stats.student.student_id = studentProfile?.student_id || session.studentId || stats.student.student_id;
+      stats.student.email = studentProfile?.email || session.email || stats.student.email;
+    }
+
     return NextResponse.json(stats, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'

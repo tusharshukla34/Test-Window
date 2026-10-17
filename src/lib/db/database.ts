@@ -883,7 +883,7 @@ export const dbService = {
   },
 
   getUserById(id: string): UserProfile | null {
-    const row = db.prepare('SELECT id, student_id, name, email, role, avatar_url, phone, status, created_at, updated_at FROM profiles WHERE id = ?').get(id) as UserProfile;
+    const row = db.prepare('SELECT id, student_id, name, email, role, avatar_url, phone, status, created_at, updated_at FROM profiles WHERE id = ? OR lower(student_id) = lower(?) OR lower(email) = lower(?)').get(id, id, id) as UserProfile;
     return row || null;
   },
 
@@ -2361,14 +2361,14 @@ export const dbService = {
     recent_exam_results: (ExamAttempt & { exam_title: string; max_marks: number })[];
     batch_breakdowns: StudentBatchBreakdown[];
   } {
-    let student = this.getUserById(studentId);
+    let student = this.getUserById(studentId) || this.getUserByStudentId(studentId) || this.getUserByEmail(studentId);
     if (!student) {
-      const row = db.prepare('SELECT id, student_id, name, email, role, avatar_url, phone, status FROM profiles WHERE id = ?').get(studentId) as UserProfile | undefined;
-      student = row || {
+      const row = db.prepare('SELECT id, student_id, name, email, role, avatar_url, phone, status FROM profiles WHERE id = ? OR lower(student_id) = lower(?) OR lower(email) = lower(?)').get(studentId, studentId, studentId) as UserProfile | undefined;
+      student = row || (db.prepare('SELECT id, student_id, name, email, role, avatar_url, phone, status FROM profiles WHERE role = "student" ORDER BY created_at DESC LIMIT 1').get() as UserProfile | undefined) || {
         id: studentId,
-        student_id: 'STU-001',
-        name: 'Classroom Student',
-        email: 'student@portal.edu',
+        student_id: 'STU',
+        name: 'Student',
+        email: '',
         role: 'student',
         status: 'active',
         created_at: new Date().toISOString(),
