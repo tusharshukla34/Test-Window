@@ -54,11 +54,7 @@ let db: InstanceType<typeof Database>;
 
 try {
   db = new Database(dbPath);
-  if (isServerless) {
-    db.pragma('journal_mode = DELETE');
-  } else {
-    db.pragma('journal_mode = WAL');
-  }
+  db.pragma('journal_mode = DELETE');
   db.pragma('foreign_keys = ON');
 } catch (err) {
   console.warn('[SQLITE DISK OPEN FAILED, FALLING BACK TO MEMORY]:', err);
