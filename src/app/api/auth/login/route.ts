@@ -9,30 +9,54 @@ export async function POST(req: NextRequest) {
     const { identifier, password, expectedRole } = body;
 
     if (!identifier || !password) {
-      return NextResponse.json({ error: 'Please enter your username/email and password' }, { status: 400 });
-    }
-
-    // Check if identifier is an email, student/admin ID, or username
-    let user = dbService.getUserByIdentifier(identifier);
-    if (!user) {
-      user = dbService.getUserByEmail(identifier);
-    }
-    if (!user) {
-      user = dbService.getUserByStudentId(identifier);
-    }
-
-    if (!user) {
-      return NextResponse.json({ error: 'Invalid credentials. User not found.' }, { status: 401 });
-    }
-
-    if (user.status !== 'active') {
-      return NextResponse.json({ error: 'Account is deactivated. Please contact Trainer Tushar Shukla.' }, { status: 403 });
-    }
-
-    if (expectedRole && user.role !== expectedRole) {
       return NextResponse.json({
-        error: `Unauthorized access. This portal is for ${expectedRole === 'admin' ? 'Trainers/Administrators' : 'Students'} only.`
-      }, { status: 403 });
+        error: expectedRole === 'student' ? 'Please enter your Student ID and password' : 'Please enter your Trainer ID/email and password'
+      }, { status: 400 });
+    }
+
+    const cleanIdentifier = String(identifier).trim();
+    let user: any = null;
+
+    // Strict Rule: Students are ONLY allowed to log in via Student ID, NEVER by email
+    if (expectedRole === 'student') {
+      if (cleanIdentifier.includes('@')) {
+        return NextResponse.json({
+          error: 'Email login is strictly disabled for students. Please log in using your assigned Student ID (e.g. STU-2026-002).'
+        }, { status: 400 });
+      }
+
+      user = dbService.getUserByStudentId(cleanIdentifier);
+      if (!user) {
+        return NextResponse.json({
+          error: 'No student found with this Student ID. Please check your assigned ID (e.g. STU-2026-002).'
+        }, { status: 401 });
+      }
+
+      if (user.role !== 'student') {
+        return NextResponse.json({
+          error: 'Unauthorized access. This portal is for students only.'
+        }, { status: 403 });
+      }
+    } else {
+      // Trainer / Admin Login (Trainer Tushar: Tushar1234 or email)
+      user = dbService.getUserByIdentifier(cleanIdentifier);
+      if (!user) {
+        user = dbService.getUserByEmail(cleanIdentifier);
+      }
+      if (!user) {
+        user = dbService.getUserByStudentId(cleanIdentifier);
+      }
+
+      if (!user) {
+        return NextResponse.json({ error: 'Invalid credentials. User not found.' }, { status: 401 });
+      }
+
+      // Block student accounts attempting to log in via email on admin tab
+      if (user.role === 'student') {
+        return NextResponse.json({
+          error: 'Student login is permitted ONLY via Student ID. Please switch to the Student Portal tab.'
+        }, { status: 403 });
+      }
     }
 
     const isValid = await verifyPassword(password, user.password_hash);
