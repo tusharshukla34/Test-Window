@@ -17,9 +17,7 @@ import {
   ChevronRight,
   Calendar,
   Check,
-  RefreshCw,
-  Bug,
-  MessageSquarePlus
+  RefreshCw
 } from 'lucide-react';
 import { ClayCard, ClayCard3D, ClayButton } from '@/components/ui/ClayComponents';
 import StudentHero3D from '@/components/student/StudentHero3D';
@@ -180,33 +178,6 @@ export default function StudentDashboardPage() {
         completedAssignments={data.completed_assignments}
         batchesCount={data.batches.length}
       />
-
-      {/* Classroom Bug Report & Feedback Banner */}
-      <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-amber-500/10 via-teal-500/10 to-indigo-500/10 border border-teal-500/20 backdrop-blur-md shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-rose-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20">
-            <Bug size={20} />
-          </div>
-          <div>
-            <h4 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <span>Notice an error or have an idea to improve your dashboard?</span>
-              <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                Direct Line
-              </span>
-            </h4>
-            <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-              Submit a quick bug report or suggestion directly to Trainer Tushar. Diagnostics are automatically attached.
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={() => setFeedbackModalOpen(true)}
-          className="inline-flex items-center justify-center gap-2 px-4.5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-md shadow-slate-900/10 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0.5 cursor-pointer shrink-0"
-        >
-          <MessageSquarePlus size={15} className="text-amber-400" />
-          <span>Report Error / Feedback</span>
-        </button>
-      </div>
 
       {/* Two Column Section: Homework Submissions & Exam Results with 3D Perspectives */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
