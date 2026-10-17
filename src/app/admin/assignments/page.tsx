@@ -2,17 +2,19 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { BookOpen, Plus, Calendar, Clock, CheckCircle, FileText, ArrowRight, Trash2 } from 'lucide-react';
+import { BookOpen, Plus, Calendar, Clock, CheckCircle, FileText, ArrowRight, Trash2, Edit3 } from 'lucide-react';
 import { ClayCard, ClayButton } from '@/components/ui/ClayComponents';
 import FormattedInstructions from '@/components/ui/FormattedInstructions';
+import EditAssignmentModal from '@/components/admin/EditAssignmentModal';
 import { Assignment } from '@/lib/db/types';
 
 let cachedAssignmentsList: (Assignment & { recipient_batch_names: string[]; submission_count: number })[] | null = null;
 
 export default function AdminAssignmentsPage() {
   const router = useRouter();
-  const [assignments, setAssignments] = useState<(Assignment & { recipient_batch_names: string[]; submission_count: number })[]>(cachedAssignmentsList || []);
+  const [assignments, setAssignments] = useState<(Assignment & { recipient_batch_names: string[]; target_batches?: string[]; submission_count: number })[]>(cachedAssignmentsList || []);
   const [loading, setLoading] = useState(!cachedAssignmentsList);
+  const [editingAssignment, setEditingAssignment] = useState<(Assignment & { recipient_batch_names: string[]; target_batches?: string[]; submission_count: number }) | null>(null);
 
   const fetchAssignments = () => {
     fetch(`/api/admin/assignments?_t=${Date.now()}`, { cache: 'no-store' })
@@ -141,14 +143,22 @@ export default function AdminAssignmentsPage() {
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => router.push(`/admin/submissions?assignment_id=${asg.id}`)}
-                    className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center gap-1 transition"
+                    className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center gap-1 transition cursor-pointer"
                   >
                     Grade <ArrowRight size={13} />
                   </button>
                   <button
+                    onClick={() => setEditingAssignment(asg)}
+                    title="Edit Assignment"
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-amber-50 text-slate-700 hover:text-amber-800 font-bold text-xs flex items-center gap-1 transition cursor-pointer hover:border-amber-300 border border-slate-200"
+                  >
+                    <Edit3 size={13} className="text-amber-600" />
+                    <span>Edit</span>
+                  </button>
+                  <button
                     onClick={() => handleDeleteAssignment(asg.id, asg.title)}
                     title="Delete Assignment"
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
                   >
                     <Trash2 size={15} />
                   </button>
@@ -158,6 +168,17 @@ export default function AdminAssignmentsPage() {
           );
         })}
       </div>
+
+      {/* Edit Assignment Modal */}
+      <EditAssignmentModal
+        isOpen={Boolean(editingAssignment)}
+        onClose={() => setEditingAssignment(null)}
+        assignment={editingAssignment}
+        onSaved={(updated) => {
+          setAssignments(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a));
+          cachedAssignmentsList = (cachedAssignmentsList || []).map(a => a.id === updated.id ? { ...a, ...updated } : a);
+        }}
+      />
     </div>
   );
 }

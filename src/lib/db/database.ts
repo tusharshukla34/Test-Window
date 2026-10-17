@@ -1081,19 +1081,22 @@ export const dbService = {
   getAllAssignments(): (Assignment & { recipient_batch_names: string[]; submission_count: number })[] {
     const assignments = db.prepare('SELECT * FROM assignments ORDER BY created_at DESC').all() as Assignment[];
     const getBatches = db.prepare(`
-      SELECT b.name FROM batches b
+      SELECT b.id, b.name FROM batches b
       JOIN assignment_recipients ar ON b.id = ar.batch_id
       WHERE ar.assignment_id = ?
     `);
     const countSubs = db.prepare('SELECT count(*) as count FROM assignment_submissions WHERE assignment_id = ?');
 
     return assignments.map(a => {
-      const bNames = (getBatches.all(a.id) as { name: string }[]).map(r => r.name);
+      const batchRows = getBatches.all(a.id) as { id: string; name: string }[];
+      const bNames = batchRows.map(r => r.name);
+      const bIds = batchRows.map(r => r.id);
       const subCount = (countSubs.get(a.id) as { count: number }).count;
       return {
         ...a,
         allowed_formats: typeof a.allowed_formats === 'string' ? (a.allowed_formats as string).split(',') : a.allowed_formats,
         recipient_batch_names: bNames,
+        target_batches: bIds,
         submission_count: subCount
       };
     });
@@ -1193,6 +1196,82 @@ export const dbService = {
     }
 
     return this.getAssignmentById(id)!;
+  },
+
+  updateAssignment(id: string, data: {
+    title?: string;
+    subject?: string;
+    instructions?: string;
+    submission_type?: 'file_upload' | 'text_response' | 'both';
+    allowed_formats?: string[];
+    max_file_size_mb?: number;
+    max_score?: number;
+    rubric?: string | null;
+    allow_late_submissions?: boolean;
+    deadline?: string;
+    batch_ids?: string[];
+    status?: 'draft' | 'published' | 'archived';
+  }): (Assignment & { recipient_batch_names: string[]; submission_count: number }) | null {
+    const existing = this.getAssignmentById(id);
+    if (!existing) return null;
+
+    db.prepare(`
+      UPDATE assignments SET
+        title = coalesce(?, title),
+        subject = coalesce(?, subject),
+        instructions = coalesce(?, instructions),
+        submission_type = coalesce(?, submission_type),
+        allowed_formats = coalesce(?, allowed_formats),
+        max_file_size_mb = coalesce(?, max_file_size_mb),
+        max_score = coalesce(?, max_score),
+        rubric = coalesce(?, rubric),
+        allow_late_submissions = coalesce(?, allow_late_submissions),
+        deadline = coalesce(?, deadline),
+        status = coalesce(?, status),
+        updated_at = datetime('now')
+      WHERE id = ?
+    `).run(
+      data.title ?? null,
+      data.subject ?? null,
+      data.instructions ?? null,
+      data.submission_type ?? null,
+      data.allowed_formats ? data.allowed_formats.join(',') : null,
+      data.max_file_size_mb ?? null,
+      data.max_score ?? null,
+      data.rubric !== undefined ? data.rubric : null,
+      data.allow_late_submissions !== undefined ? (data.allow_late_submissions ? 1 : 0) : null,
+      data.deadline ?? null,
+      data.status ?? null,
+      id
+    );
+
+    if (data.batch_ids && Array.isArray(data.batch_ids)) {
+      db.prepare('DELETE FROM assignment_recipients WHERE assignment_id = ?').run(id);
+      const insRcp = db.prepare('INSERT INTO assignment_recipients (id, assignment_id, batch_id) VALUES (?, ?, ?)');
+      for (const bId of data.batch_ids) {
+        insRcp.run(`rcp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, id, bId);
+      }
+    }
+
+    const updated = this.getAssignmentById(id);
+    if (!updated) return null;
+
+    const getBatches = db.prepare(`
+      SELECT b.id, b.name FROM batches b
+      JOIN assignment_recipients ar ON b.id = ar.batch_id
+      WHERE ar.assignment_id = ?
+    `);
+    const countSubs = db.prepare('SELECT count(*) as count FROM assignment_submissions WHERE assignment_id = ?');
+    const batchRows = getBatches.all(id) as { id: string; name: string }[];
+    const bNames = batchRows.map(r => r.name);
+    const subCount = (countSubs.get(id) as { count: number }).count;
+
+    return {
+      ...updated,
+      recipient_batch_names: bNames,
+      target_batches: batchRows.map(r => r.id),
+      submission_count: subCount
+    };
   },
 
   deleteAssignment(id: string): boolean {
