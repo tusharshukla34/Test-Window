@@ -11,15 +11,31 @@ export async function POST(
     await ensureCloudSyncReady();
     const { id } = await params;
     const body = await req.json();
-    const { student_id } = body;
+    const { student_id, student_ids } = body;
 
-    if (!student_id) {
-      return NextResponse.json({ error: 'student_id is required' }, { status: 400 });
+    const idsToAdd: string[] = [];
+    if (Array.isArray(student_ids)) {
+      idsToAdd.push(...student_ids.filter(Boolean));
+    } else if (student_id) {
+      idsToAdd.push(student_id);
     }
 
-    dbService.addStudentToBatch(id, student_id);
+    if (idsToAdd.length === 0) {
+      return NextResponse.json({ error: 'student_id or student_ids array is required' }, { status: 400 });
+    }
+
+    if (idsToAdd.length === 1) {
+      dbService.addStudentToBatch(id, idsToAdd[0]);
+    } else {
+      dbService.addStudentsToBatch(id, idsToAdd);
+    }
+
     await syncDatabaseToCloud();
-    return NextResponse.json({ success: true, message: 'Student added to batch' });
+    return NextResponse.json({ 
+      success: true, 
+      message: `${idsToAdd.length} student(s) added to batch`,
+      count: idsToAdd.length 
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error adding student to batch';
     return NextResponse.json({ error: message }, { status: 500 });

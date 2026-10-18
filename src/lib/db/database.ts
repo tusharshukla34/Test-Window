@@ -1071,7 +1071,21 @@ export const dbService = {
 
   addStudentToBatch(batchId: string, studentId: string): void {
     db.prepare('INSERT OR IGNORE INTO batch_memberships (id, batch_id, user_id) VALUES (?, ?, ?)')
-      .run(`mem-${Date.now().toString(36)}`, batchId, studentId);
+      .run(`mem-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, batchId, studentId);
+  },
+
+  addStudentsToBatch(batchId: string, studentIds: string[]): number {
+    const insertStmt = db.prepare('INSERT OR IGNORE INTO batch_memberships (id, batch_id, user_id) VALUES (?, ?, ?)');
+    let count = 0;
+    const tx = db.transaction((ids: string[]) => {
+      for (const sId of ids) {
+        const id = `mem-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+        const res = insertStmt.run(id, batchId, sId);
+        if (res.changes > 0) count++;
+      }
+    });
+    tx(studentIds);
+    return count;
   },
 
   removeStudentFromBatch(batchId: string, studentId: string): void {

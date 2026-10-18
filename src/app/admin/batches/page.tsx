@@ -26,8 +26,10 @@ export default function BatchesPage() {
   const [batchToDelete, setBatchToDelete] = useState<(Batch & { student_count?: number; students?: UserProfile[] }) | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Add student form
-  const [selectedStudentId, setSelectedStudentId] = useState('');
+  // Add student form (supports multi-selection)
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [enrollSearch, setEnrollSearch] = useState('');
+  const [isEnrolling, setIsEnrolling] = useState(false);
   const [studentSearch, setStudentSearch] = useState('');
 
   const fetchBatches = async () => {
@@ -108,31 +110,35 @@ export default function BatchesPage() {
     } catch {}
   };
 
-  const handleAddStudentToBatch = async () => {
-    if (!selectedBatch || !selectedStudentId) return;
+  const handleAddStudentsToBatch = async () => {
+    if (!selectedBatch || selectedStudentIds.length === 0 || isEnrolling) return;
+    setIsEnrolling(true);
 
-    const studentObj = allStudents.find(s => s.id === selectedStudentId);
-    if (studentObj) {
+    const studentsToAdd = allStudents.filter(s => selectedStudentIds.includes(s.id));
+    if (studentsToAdd.length > 0) {
       setSelectedBatch(prev => prev ? {
         ...prev,
-        students: [...prev.students, studentObj]
+        students: [...prev.students, ...studentsToAdd]
       } : null);
-      setBatches(prev => prev.map(b => b.id === selectedBatch.id ? { ...b, student_count: b.student_count + 1 } : b));
+      setBatches(prev => prev.map(b => b.id === selectedBatch.id ? { ...b, student_count: b.student_count + studentsToAdd.length } : b));
     }
 
     try {
       const res = await fetch(`/api/admin/batches/${selectedBatch.id}/students`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ student_id: selectedStudentId })
+        body: JSON.stringify({ student_ids: selectedStudentIds })
       });
       if (res.ok) {
         setIsAddStudentOpen(false);
-        setSelectedStudentId('');
+        setSelectedStudentIds([]);
+        setEnrollSearch('');
         fetchBatchDetails(selectedBatch.id);
         fetchBatches();
       }
-    } catch {}
+    } catch {} finally {
+      setIsEnrolling(false);
+    }
   };
 
   const handleRemoveStudent = async (studentId: string) => {
@@ -413,52 +419,159 @@ export default function BatchesPage() {
         </form>
       </Modal>
 
-      {/* Add Student to Batch Modal */}
+      {/* Add Student to Batch Modal (Multi-select) */}
       <Modal
         isOpen={isAddStudentOpen}
-        onClose={() => setIsAddStudentOpen(false)}
-        title={`Enroll Student into ${selectedBatch?.name}`}
+        onClose={() => {
+          setIsAddStudentOpen(false);
+          setSelectedStudentIds([]);
+          setEnrollSearch('');
+        }}
+        title={`Enroll Students into ${selectedBatch?.name || 'Batch'}`}
       >
         <div className="space-y-4">
           <p className="text-xs text-slate-500">
-            Select a registered student to add to this cohort. Enrolled students will immediately gain access to assignments and examinations targeted at this batch.
+            Select one or multiple registered students to add to this cohort. Enrolled students will immediately gain access to assignments and examinations targeted at this batch.
           </p>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Select Student
-            </label>
-            <select
-              value={selectedStudentId}
-              onChange={(e) => setSelectedStudentId(e.target.value)}
-              className="clay-input w-full p-2.5 text-xs text-slate-800"
-            >
-              <option value="">-- Choose a student --</option>
-              {allStudents
+          {/* Search & Bulk Selection Actions */}
+          <div className="space-y-2">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search students by name, ID, or email..."
+                value={enrollSearch}
+                onChange={(e) => setEnrollSearch(e.target.value)}
+                className="clay-input w-full pl-9 pr-3 py-2 text-xs text-slate-800"
+              />
+              <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none">
+                <Search size={14} />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-xs pt-1">
+              <span className="font-semibold text-slate-700">
+                {selectedStudentIds.length} of {allStudents.filter(s => !selectedBatch?.students.some(bs => bs.id === s.id)).length} students selected
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const available = allStudents
+                      .filter(s => !selectedBatch?.students.some(bs => bs.id === s.id))
+                      .filter(s => {
+                        if (!enrollSearch.trim()) return true;
+                        const q = enrollSearch.toLowerCase().trim();
+                        return (
+                          s.name.toLowerCase().includes(q) ||
+                          (s.student_id && s.student_id.toLowerCase().includes(q)) ||
+                          (s.email && s.email.toLowerCase().includes(q))
+                        );
+                      })
+                      .map(s => s.id);
+                    setSelectedStudentIds(prev => Array.from(new Set([...prev, ...available])));
+                  }}
+                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+                >
+                  Select All Filtered
+                </button>
+                <span className="text-slate-300">|</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedStudentIds([])}
+                  className="text-xs font-semibold text-slate-500 hover:text-slate-700 transition-colors"
+                >
+                  Deselect All
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Scrollable Students Checklist */}
+          <div className="border border-slate-200 rounded-xl max-h-72 overflow-y-auto divide-y divide-slate-100 bg-white shadow-inner">
+            {(() => {
+              const available = allStudents
                 .filter(s => !selectedBatch?.students.some(bs => bs.id === s.id))
-                .map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.student_id}) - {s.email}
-                  </option>
-                ))}
-            </select>
+                .filter(s => {
+                  if (!enrollSearch.trim()) return true;
+                  const q = enrollSearch.toLowerCase().trim();
+                  return (
+                    s.name.toLowerCase().includes(q) ||
+                    (s.student_id && s.student_id.toLowerCase().includes(q)) ||
+                    (s.email && s.email.toLowerCase().includes(q))
+                  );
+                });
+
+              if (available.length === 0) {
+                return (
+                  <div className="p-6 text-center text-xs text-slate-400">
+                    {enrollSearch.trim()
+                      ? 'No students found matching your search.'
+                      : 'All registered students are already enrolled in this batch.'}
+                  </div>
+                );
+              }
+
+              return available.map(s => {
+                const isChecked = selectedStudentIds.includes(s.id);
+                return (
+                  <label
+                    key={s.id}
+                    className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer text-xs transition-colors select-none ${
+                      isChecked ? 'bg-indigo-50/70' : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => {
+                        setSelectedStudentIds(prev =>
+                          prev.includes(s.id) ? prev.filter(id => id !== s.id) : [...prev, s.id]
+                        );
+                      }}
+                      className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-slate-800 truncate">{s.name}</span>
+                        {s.student_id && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                            {s.student_id}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 truncate">{s.email}</p>
+                    </div>
+                  </label>
+                );
+              });
+            })()}
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
             <ClayButton
               type="button"
               variant="secondary"
-              onClick={() => setIsAddStudentOpen(false)}
+              disabled={isEnrolling}
+              onClick={() => {
+                setIsAddStudentOpen(false);
+                setSelectedStudentIds([]);
+                setEnrollSearch('');
+              }}
             >
               Cancel
             </ClayButton>
             <ClayButton
               type="button"
               variant="teal"
-              disabled={!selectedStudentId}
-              onClick={handleAddStudentToBatch}
+              disabled={selectedStudentIds.length === 0 || isEnrolling}
+              onClick={handleAddStudentsToBatch}
             >
-              Confirm Enrollment
+              {isEnrolling
+                ? 'Enrolling...'
+                : selectedStudentIds.length > 0
+                  ? `Enroll ${selectedStudentIds.length} Student${selectedStudentIds.length > 1 ? 's' : ''}`
+                  : 'Select Students to Enroll'}
             </ClayButton>
           </div>
         </div>
