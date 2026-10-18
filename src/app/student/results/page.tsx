@@ -32,16 +32,37 @@ interface StudentExamSubmissionItem {
   } | null;
 }
 
+let cachedStudentResults: StudentExamSubmissionItem[] | null = null;
+
 export default function StudentResultsHubPage() {
   const router = useRouter();
-  const [items, setItems] = useState<StudentExamSubmissionItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<StudentExamSubmissionItem[]>(cachedStudentResults || []);
+  const [loading, setLoading] = useState(!cachedStudentResults);
 
   useEffect(() => {
-    fetch('/api/student/results')
+    // Restore from localStorage if module cache is empty
+    if (!cachedStudentResults && typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('student_results_cache');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          cachedStudentResults = parsed;
+          setItems(parsed);
+          setLoading(false);
+        }
+      } catch {}
+    }
+
+    fetch(`/api/student/results?_t=${Date.now()}`, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
-        if (Array.isArray(data)) setItems(data);
+        if (Array.isArray(data)) {
+          setItems(data);
+          cachedStudentResults = data;
+          try {
+            localStorage.setItem('student_results_cache', JSON.stringify(data));
+          } catch {}
+        }
         setLoading(false);
       })
       .catch(() => setLoading(false));

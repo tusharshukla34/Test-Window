@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       description,
       instructions,
       duration_minutes: Number(duration_minutes) || 20,
-      negative_marking: Number(negative_marking) || 0.25,
+      negative_marking: negative_marking !== undefined && negative_marking !== null ? Number(negative_marking) : 0.0,
       allow_pausing: Boolean(allow_pausing),
       batch_ids,
       question_ids,
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
         description,
         durationMinutes: Number(duration_minutes) || 20,
         totalQuestions: question_ids.length,
-        negativeMarking: Number(negative_marking) || 0.25,
+        negativeMarking: negative_marking !== undefined && negative_marking !== null ? Number(negative_marking) : 0.0,
         batchNames: batchNamesList.length > 0 ? batchNamesList : batch_ids,
         recipients: Array.from(studentRecipientsMap.values())
       }).catch(err => console.warn('[Exam Email Sync]:', err));

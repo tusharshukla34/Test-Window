@@ -14,7 +14,8 @@ import {
   Menu,
   X,
   Layers,
-  Bug
+  Bug,
+  KeyRound
 } from 'lucide-react';
 import StudentProfileModal from '@/components/student/StudentProfileModal';
 import StudentFeedbackModal from '@/components/student/StudentFeedbackModal';
@@ -35,6 +36,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [profileModalTab, setProfileModalTab] = useState<'profile' | 'security'>('profile');
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
   const [user, setUser] = useState<StudentUser | null>(null);
   const [notifications, setNotifications] = useState<{ id: string; title: string; message: string; is_read: boolean }[]>([]);
@@ -282,9 +284,12 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
         {/* User Card */}
         <div className="pt-4 border-t border-slate-100">
           <button
-            onClick={() => setProfileModalOpen(true)}
-            className="w-full text-left bg-slate-50 hover:bg-slate-100/90 rounded-xl p-3 mb-3 border border-slate-100 transition group flex items-center gap-2.5 cursor-pointer"
-            title="Click to edit name or upload photo"
+            onClick={() => {
+              setProfileModalTab('profile');
+              setProfileModalOpen(true);
+            }}
+            className="w-full text-left bg-slate-50 hover:bg-slate-100/90 rounded-xl p-3 mb-2 border border-slate-100 transition group flex items-center gap-2.5 cursor-pointer"
+            title="Click to view profile details or upload photo"
           >
             {user ? (
               user.avatar_url ? (
@@ -317,8 +322,19 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
           </button>
 
           <button
+            onClick={() => {
+              setProfileModalTab('security');
+              setProfileModalOpen(true);
+            }}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 mb-1.5 text-xs font-semibold text-slate-700 hover:text-teal-800 hover:bg-teal-50/70 border border-slate-100 rounded-xl transition cursor-pointer"
+            title="Change your account password"
+          >
+            <KeyRound size={14} className="text-teal-600" /> Change Password
+          </button>
+
+          <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
           >
             <LogOut size={15} /> Sign Out
           </button>
@@ -416,11 +432,12 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
         </main>
       </div>
 
-      {/* Student Profile & Photo Modal */}
+      {/* Student Profile & Password Modal */}
       <StudentProfileModal
         isOpen={profileModalOpen}
         onClose={() => setProfileModalOpen(false)}
         user={user}
+        initialTab={profileModalTab}
         onProfileUpdated={(updated) => {
           setUser(prev => {
             const next = prev ? { ...prev, name: updated.name, avatar_url: updated.avatar_url } : null;

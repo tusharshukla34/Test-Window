@@ -35,12 +35,27 @@ export default function StudentBatchesPage() {
   const [selectedBatchTab, setSelectedBatchTab] = useState<string>('all');
 
   useEffect(() => {
+    if (!cachedBatchesData && typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('student_batches_cache');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          cachedBatchesData = parsed;
+          setData(parsed);
+          setLoading(false);
+        }
+      } catch {}
+    }
+
     fetch('/api/student/batches')
       .then(res => res.json())
       .then(d => {
         if (d && !d.error) {
           setData(d);
           cachedBatchesData = d;
+          try {
+            localStorage.setItem('student_batches_cache', JSON.stringify(d));
+          } catch {}
         }
         setLoading(false);
       })

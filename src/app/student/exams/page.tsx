@@ -22,12 +22,27 @@ export default function StudentExamsPage() {
   const [loading, setLoading] = useState(!cachedStudentExams);
 
   useEffect(() => {
+    if (!cachedStudentExams && typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('student_exams_cache');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          cachedStudentExams = parsed;
+          setExams(parsed);
+          setLoading(false);
+        }
+      } catch {}
+    }
+
     fetch('/api/student/exams')
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
           setExams(data);
           cachedStudentExams = data;
+          try {
+            localStorage.setItem('student_exams_cache', JSON.stringify(data));
+          } catch {}
         }
         setLoading(false);
       })
@@ -42,7 +57,7 @@ export default function StudentExamsPage() {
           <FileSpreadsheet size={24} className="text-teal-600 shrink-0" /> Online Examinations
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-          Standardized AE/JE mock examinations with server-authoritative timers and negative marking.
+          Curated online examinations and assessments with server-authoritative timers.
         </p>
       </div>
 
@@ -98,7 +113,9 @@ export default function StudentExamsPage() {
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10px]">Marking Scheme</span>
-                    <span className="font-bold text-emerald-700 font-mono">+{exam.marks_per_question} / -{exam.negative_marking}</span>
+                    <span className="font-bold text-emerald-700 font-mono">
+                      +{exam.marks_per_question} {Number(exam.negative_marking || 0) > 0 ? `/ -${exam.negative_marking}` : '(No Penalty)'}
+                    </span>
                   </div>
                 </div>
               </div>

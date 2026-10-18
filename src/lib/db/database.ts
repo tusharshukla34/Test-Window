@@ -984,7 +984,7 @@ export const dbService = {
   },
 
   resetPassword(userId: string, newHash: string): boolean {
-    const res = db.prepare('UPDATE profiles SET password_hash = ?, updated_at = datetime("now") WHERE id = ?').run(newHash, userId);
+    const res = db.prepare(`UPDATE profiles SET password_hash = ?, updated_at = datetime('now') WHERE id = ?`).run(newHash, userId);
     return res.changes > 0;
   },
 

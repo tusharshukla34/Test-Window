@@ -317,7 +317,7 @@ export default function StudentExamResultPage() {
                           </span>
                         ) : (
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-100 flex items-center gap-1">
-                            <AlertCircle size={12} /> Incorrect (-{q.negative_penalty})
+                            <AlertCircle size={12} /> Incorrect {Number(q.negative_penalty || 0) > 0 ? `(-${q.negative_penalty})` : '(0 pts)'}
                           </span>
                         )
                       ) : (

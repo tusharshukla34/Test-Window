@@ -59,9 +59,10 @@ export default function AdminExamsPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [durationMinutes, setDurationMinutes] = useState(20);
-  const [negativeMarking, setNegativeMarking] = useState(0.25);
+  const [negativeMarking, setNegativeMarking] = useState(0);
   const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([]);
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
+  const [examTopicFilter, setExamTopicFilter] = useState('all');
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = async () => {
@@ -169,7 +170,7 @@ export default function AdminExamsPage() {
             <FileSpreadsheet size={24} className="text-indigo-600" /> Online Examination Engine
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Configure timed tests with server-authoritative timers, negative marking, and real-time analytics.
+            Configure timed tests with server-authoritative timers, topic-wise questions, and real-time analytics.
           </p>
         </div>
         <ClayButton
@@ -204,7 +205,7 @@ export default function AdminExamsPage() {
               </h3>
 
               <p className="text-xs text-slate-500 line-clamp-2">
-                {exam.description || 'Full comprehensive mock examination for AE/JE aspirants.'}
+                {exam.description || 'Full comprehensive mock examination for students.'}
               </p>
 
               {/* Timing & Scoring details */}
@@ -215,7 +216,9 @@ export default function AdminExamsPage() {
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[10px]">Marking Scheme</span>
-                  <span className="font-bold text-emerald-700 font-mono">+{exam.marks_per_question} / -{exam.negative_marking}</span>
+                  <span className="font-bold text-emerald-700 font-mono">
+                    +{exam.marks_per_question} {Number(exam.negative_marking || 0) > 0 ? `/ -${exam.negative_marking}` : '(No Penalty)'}
+                  </span>
                 </div>
               </div>
 
@@ -285,32 +288,17 @@ export default function AdminExamsPage() {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Duration (Minutes)</label>
-              <input
-                type="number"
-                min={5}
-                max={300}
-                required
-                value={durationMinutes}
-                onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                className="clay-input w-full p-2.5 text-xs text-slate-800 font-mono"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Negative Marking Penalty</label>
-              <input
-                type="number"
-                step="0.05"
-                min={0}
-                max={2}
-                required
-                value={negativeMarking}
-                onChange={(e) => setNegativeMarking(Number(e.target.value))}
-                className="clay-input w-full p-2.5 text-xs text-slate-800 font-mono"
-              />
-            </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Duration (Minutes)</label>
+            <input
+              type="number"
+              min={5}
+              max={300}
+              required
+              value={durationMinutes}
+              onChange={(e) => setDurationMinutes(Number(e.target.value))}
+              className="clay-input w-full p-2.5 text-xs text-slate-800 font-mono"
+            />
           </div>
 
           {/* Target Batches Selection */}
@@ -338,21 +326,61 @@ export default function AdminExamsPage() {
 
           {/* Select Questions from Question Bank */}
           <div>
-            <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
               <label className="text-xs font-semibold text-slate-700">
                 Select Exam Questions ({selectedQuestionIds.length} of {questions.length} selected)
               </label>
-              <button
-                type="button"
-                onClick={selectAllQuestions}
-                className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold"
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={selectAllQuestions}
+                  className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer"
+                >
+                  Select All
+                </button>
+                <span className="text-slate-300">|</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedQuestionIds([])}
+                  className="text-[11px] text-slate-500 hover:text-slate-700 font-semibold cursor-pointer"
+                >
+                  Deselect All
+                </button>
+              </div>
+            </div>
+
+            {/* Topic Filter for Questions in Exam Modal */}
+            <div className="flex items-center gap-2 mb-2 p-2 rounded-xl bg-slate-100/70 border border-slate-200">
+              <span className="text-[11px] font-semibold text-slate-600 shrink-0">Filter Topic:</span>
+              <select
+                value={examTopicFilter}
+                onChange={(e) => setExamTopicFilter(e.target.value)}
+                className="clay-input py-1 px-2 text-xs text-slate-800 flex-1"
               >
-                Select All Questions
-              </button>
+                <option value="all">All Topics ({questions.length} questions)</option>
+                {Array.from(new Set(questions.map(q => q.topic).filter(Boolean))).map(t => {
+                  const count = questions.filter(q => q.topic === t).length;
+                  return <option key={t} value={t}>{t} ({count})</option>;
+                })}
+              </select>
+              {examTopicFilter !== 'all' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const topicQuestionIds = questions.filter(q => q.topic === examTopicFilter).map(q => q.id);
+                    setSelectedQuestionIds(prev => Array.from(new Set([...prev, ...topicQuestionIds])));
+                  }}
+                  className="px-2.5 py-1 bg-indigo-600 text-white hover:bg-indigo-700 text-[10px] font-bold rounded-lg transition cursor-pointer shrink-0"
+                >
+                  + Add All in Topic
+                </button>
+              )}
             </div>
 
             <div className="max-h-60 overflow-y-auto space-y-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
-              {questions.map((q, idx) => (
+              {questions
+                .filter(q => examTopicFilter === 'all' || q.topic === examTopicFilter)
+                .map((q, idx) => (
                 <label
                   key={q.id}
                   className={`flex items-start gap-2.5 p-2 rounded-lg text-xs cursor-pointer border transition ${

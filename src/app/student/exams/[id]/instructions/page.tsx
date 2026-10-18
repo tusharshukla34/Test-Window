@@ -208,10 +208,9 @@ export default function ExamInstructionsPage() {
               <div className="space-y-3">
                 <h3 className="font-bold text-slate-900">Read the following instructions carefully.</h3>
                 <ol className="list-decimal pl-5 space-y-2 text-slate-700">
-                  <li>This examination contains <strong>{exam.total_questions} total questions</strong> and may combine <strong>Multiple-Choice (MCQ), Practical Coding Questions, Written Answers, and Attachment Uploads</strong>.</li>
+                  <li>This examination contains <strong>{exam.total_questions} total questions</strong> and may combine <strong>Multiple-Choice (MCQ) and Practical Coding Questions</strong>.</li>
                   <li>You have to finish the test in <strong>{exam.duration_minutes} minutes</strong>. An authoritative server timer tracks your attempt.</li>
                   <li><strong>Practical Coding Questions:</strong> Write clean code directly in the code editor. Automatic indentation, bracket pairing, and syntax highlighting are enabled. You are NOT required to execute or run the code; Trainer Tushar Shukla will review and grade your solution manually.</li>
-                  <li><strong>Written & File Upload Questions:</strong> Enter complete explanatory answers or upload required practical project files (PDF, image, notebook, or code zip).</li>
                   <li><strong>Mandatory Fullscreen Mode:</strong> The examination runs strictly in Fullscreen Mode. If you exit fullscreen, minimize the browser, or navigate away, your examination session will be <strong>LOCKED</strong> with a blocking security overlay until you restore fullscreen. Exiting fullscreen does not reset your timer or erase your answers.</li>
                   <li>Your answers auto-save to the cloud as you navigate between questions.</li>
                 </ol>

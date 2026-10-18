@@ -44,21 +44,55 @@ export default function StudentAssignmentsPage() {
       if (Array.isArray(data)) {
         setAssignments(data);
         cachedStudentAssignments = data;
+        try {
+          localStorage.setItem('student_assignments_cache', JSON.stringify(data));
+        } catch {}
       }
     } catch {}
     setLoading(false);
   };
 
   useEffect(() => {
+    if (!cachedStudentAssignments && typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('student_assignments_cache');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          cachedStudentAssignments = parsed;
+          setAssignments(parsed);
+          setLoading(false);
+        }
+      } catch {}
+    }
     fetchAssignments();
   }, []);
 
   const handleOpenSubmission = (asg: Assignment & { submission?: AssignmentSubmission | null }) => {
     setSelectedAsg(asg);
-    setTextResponse(asg.submission?.text_response || '');
+    let initialText = asg.submission?.text_response || '';
+    if (typeof window !== 'undefined') {
+      try {
+        const savedDraft = localStorage.getItem(`draft_asg_${asg.id}`);
+        if (savedDraft) initialText = savedDraft;
+      } catch {}
+    }
+    setTextResponse(initialText);
     setSelectedFile(null);
     setSubmitSuccess(false);
     setError(null);
+  };
+
+  const handleTextChange = (text: string) => {
+    setTextResponse(text);
+    if (typeof window !== 'undefined' && selectedAsg) {
+      try {
+        if (text.trim()) {
+          localStorage.setItem(`draft_asg_${selectedAsg.id}`, text);
+        } else {
+          localStorage.removeItem(`draft_asg_${selectedAsg.id}`);
+        }
+      } catch {}
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -148,6 +182,12 @@ export default function StudentAssignmentsPage() {
       setTextResponse('');
       setSelectedFile(null);
       setSubmitSuccess(false);
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem(`draft_asg_${submittedAsgId}`);
+        } catch {}
+      }
 
       // 2. Open the dedicated small success confirmation pop-up
       setSuccessModalData({
@@ -452,7 +492,7 @@ export default function StudentAssignmentsPage() {
                       rows={4}
                       placeholder="Type your answer, derivations, numerical calculations, or comments here..."
                       value={textResponse}
-                      onChange={(e) => setTextResponse(e.target.value)}
+                      onChange={(e) => handleTextChange(e.target.value)}
                       className="clay-input w-full p-2.5 text-xs text-slate-800"
                     />
                   )}

@@ -52,6 +52,23 @@ export default function ExamAttemptPage() {
   const [fullscreenExited, setFullscreenExited] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'failed'>('saved');
 
+  // Ref to hold the freshest state accessible by proctoring & unload handlers without closure drift
+  const latestStateRef = useRef({
+    currentQuestion: null as ExamQuestionClient | null,
+    currentResp: null as any,
+    attempt: null as ExamAttempt | null,
+    responses: {} as Record<string, any>
+  });
+
+  // Track active question index in localStorage to prevent losing position on accidental reload
+  useEffect(() => {
+    if (typeof window !== 'undefined' && examId && questions.length > 0) {
+      try {
+        localStorage.setItem(`exam_active_idx_${examId}`, currentIndex.toString());
+      } catch {}
+    }
+  }, [currentIndex, examId, questions.length]);
+
   // Authoritative server countdown (seconds remaining)
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
 
@@ -116,7 +133,39 @@ export default function ExamAttemptPage() {
           });
         }
 
+        // Restore locally drafted responses if newer than server
+        try {
+          const savedDrafts = localStorage.getItem(`exam_drafts_${examId}`);
+          if (savedDrafts) {
+            const parsed = JSON.parse(savedDrafts);
+            Object.keys(parsed).forEach(qId => {
+              if (respMap[qId]) {
+                if (parsed[qId].selected_option_id && !respMap[qId].selected_option_id) {
+                  respMap[qId].selected_option_id = parsed[qId].selected_option_id;
+                }
+                if (parsed[qId].descriptive_answer && (!respMap[qId].descriptive_answer || respMap[qId].descriptive_answer === data.questions.find((q: any) => q.id === qId)?.code_template)) {
+                  respMap[qId].descriptive_answer = parsed[qId].descriptive_answer;
+                }
+              }
+            });
+          }
+        } catch {}
+
         setResponses(respMap);
+
+        // Restore active question index from localStorage if returning from another tab or reload
+        try {
+          const savedIdx = localStorage.getItem(`exam_active_idx_${examId}`);
+          if (savedIdx !== null) {
+            const parsed = parseInt(savedIdx, 10);
+            if (!isNaN(parsed) && parsed >= 0 && parsed < data.questions.length) {
+              setCurrentIndex(parsed);
+              if (respMap[data.questions[parsed]?.id]) {
+                respMap[data.questions[parsed].id].is_visited = true;
+              }
+            }
+          }
+        } catch {}
 
         // Compute remaining time from authoritative deadline
         const deadline = new Date(data.attempt.authoritative_deadline).getTime();
@@ -227,28 +276,76 @@ export default function ExamAttemptPage() {
     };
 
     const handleVisibilityChange = () => {
-      if (document.hidden && hasStartedExam && attempt) {
-        fetch(`/api/student/exams/${examId}/autosave`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            attempt_id: attempt.id,
-            proctoring_event: {
-              type: 'tab_hidden',
-              timestamp: new Date().toISOString(),
-              details: 'Tab switched or window minimized'
-            }
-          })
-        }).catch(() => {});
+      const state = latestStateRef.current;
+      if (document.hidden && hasStartedExam && state.attempt) {
+        // Immediately persist current question's work to server on tab switch
+        if (state.currentQuestion && state.responses[state.currentQuestion.id]) {
+          const cur = state.responses[state.currentQuestion.id];
+          fetch(`/api/student/exams/${examId}/autosave`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              attempt_id: state.attempt.id,
+              question_id: state.currentQuestion.id,
+              selected_option_id: cur.selected_option_id,
+              descriptive_answer: cur.descriptive_answer,
+              submitted_file_url: cur.submitted_file_url,
+              submitted_file_name: cur.submitted_file_name,
+              is_marked_for_review: cur.is_marked_for_review,
+              is_visited: true,
+              proctoring_event: {
+                type: 'tab_hidden',
+                timestamp: new Date().toISOString(),
+                details: 'Candidate navigated away or switched tab'
+              }
+            })
+          }).catch(() => {});
+        } else {
+          fetch(`/api/student/exams/${examId}/autosave`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              attempt_id: state.attempt.id,
+              proctoring_event: {
+                type: 'tab_hidden',
+                timestamp: new Date().toISOString(),
+                details: 'Candidate navigated away or switched tab'
+              }
+            })
+          }).catch(() => {});
+        }
+      }
+    };
+
+    // Auto-save on page refresh/close using Beacon API
+    const handleBeforeUnload = () => {
+      const state = latestStateRef.current;
+      if (state.attempt && state.currentQuestion && state.responses[state.currentQuestion.id]) {
+        const cur = state.responses[state.currentQuestion.id];
+        const payload = JSON.stringify({
+          attempt_id: state.attempt.id,
+          question_id: state.currentQuestion.id,
+          selected_option_id: cur.selected_option_id,
+          descriptive_answer: cur.descriptive_answer,
+          submitted_file_url: cur.submitted_file_url,
+          submitted_file_name: cur.submitted_file_name,
+          is_marked_for_review: cur.is_marked_for_review,
+          is_visited: true
+        });
+        if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+          navigator.sendBeacon(`/api/student/exams/${examId}/autosave`, new Blob([payload], { type: 'application/json' }));
+        }
       }
     };
 
     document.addEventListener('fullscreenchange', handleFsChange);
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
       document.removeEventListener('fullscreenchange', handleFsChange);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [hasStartedExam, fullscreenExited, attempt, examId]);
 
@@ -271,7 +368,9 @@ export default function ExamAttemptPage() {
         setIsFullscreen(true);
         setFullscreenExited(false);
       }).catch(() => {
-        alert('Please allow fullscreen mode in your browser to continue your examination.');
+        // If browser blocks fullscreen API without direct user gesture, seamlessly dismiss overlay
+        setIsFullscreen(false);
+        setFullscreenExited(false);
       });
     } else {
       setFullscreenExited(false);
@@ -280,6 +379,16 @@ export default function ExamAttemptPage() {
 
   const currentQuestion = questions[currentIndex];
   const currentResp = currentQuestion ? responses[currentQuestion.id] : null;
+
+  // Sync latest state into ref for visibilitychange, beforeunload, and proctoring
+  useEffect(() => {
+    latestStateRef.current = {
+      currentQuestion: currentQuestion || null,
+      currentResp,
+      attempt,
+      responses
+    };
+  }, [currentQuestion, currentResp, attempt, responses]);
 
   // Persist response to server
   const saveResponseToServer = useCallback(async (
@@ -322,40 +431,58 @@ export default function ExamAttemptPage() {
   // Select Option (MCQ)
   const handleSelectOption = (optId: string) => {
     if (!currentQuestion) return;
-    setResponses(prev => ({
-      ...prev,
-      [currentQuestion.id]: {
-        ...prev[currentQuestion.id],
-        selected_option_id: optId,
-        is_visited: true
-      }
-    }));
+    setResponses(prev => {
+      const next = {
+        ...prev,
+        [currentQuestion.id]: {
+          ...prev[currentQuestion.id],
+          selected_option_id: optId,
+          is_visited: true
+        }
+      };
+      try {
+        localStorage.setItem(`exam_drafts_${examId}`, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
   };
 
   // Update Coding solution
   const handleUpdateCode = (code: string) => {
     if (!currentQuestion) return;
-    setResponses(prev => ({
-      ...prev,
-      [currentQuestion.id]: {
-        ...prev[currentQuestion.id],
-        descriptive_answer: code,
-        is_visited: true
-      }
-    }));
+    setResponses(prev => {
+      const next = {
+        ...prev,
+        [currentQuestion.id]: {
+          ...prev[currentQuestion.id],
+          descriptive_answer: code,
+          is_visited: true
+        }
+      };
+      try {
+        localStorage.setItem(`exam_drafts_${examId}`, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
   };
 
   // Update Written solution
   const handleUpdateWritten = (text: string) => {
     if (!currentQuestion) return;
-    setResponses(prev => ({
-      ...prev,
-      [currentQuestion.id]: {
-        ...prev[currentQuestion.id],
-        descriptive_answer: text,
-        is_visited: true
-      }
-    }));
+    setResponses(prev => {
+      const next = {
+        ...prev,
+        [currentQuestion.id]: {
+          ...prev[currentQuestion.id],
+          descriptive_answer: text,
+          is_visited: true
+        }
+      };
+      try {
+        localStorage.setItem(`exam_drafts_${examId}`, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
   };
 
   // Update File attachment
@@ -496,6 +623,13 @@ export default function ExamAttemptPage() {
 
       if (document.fullscreenElement) {
         document.exitFullscreen().catch(() => {});
+      }
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem(`exam_active_idx_${examId}`);
+          localStorage.removeItem(`exam_drafts_${examId}`);
+        } catch {}
       }
 
       router.push(`/student/exams/${examId}/result`);
@@ -809,7 +943,9 @@ export default function ExamAttemptPage() {
                 <div className="flex items-center gap-1 font-mono text-[11px] sm:text-xs font-bold">
                   <span className="text-slate-500 text-[10px] sm:text-[11px]">Marks</span>
                   <span className="px-1.5 sm:px-2 py-0.5 rounded-sm bg-[#16a34a] text-white">+{currentQuestion.marks}</span>
-                  <span className="px-1 sm:px-1.5 py-0.5 rounded-sm bg-[#dc2626] text-white">-{currentQuestion.negative_penalty}</span>
+                  {Number(currentQuestion.negative_penalty || 0) > 0 && (
+                    <span className="px-1 sm:px-1.5 py-0.5 rounded-sm bg-[#dc2626] text-white">-{currentQuestion.negative_penalty}</span>
+                  )}
                 </div>
 
                 <button className="text-[11px] sm:text-xs text-slate-400 hover:text-rose-600 flex items-center gap-1 p-1">
@@ -1113,7 +1249,11 @@ export default function ExamAttemptPage() {
             <div className="p-4 sm:p-6 overflow-y-auto text-xs space-y-2.5 text-slate-700 leading-relaxed">
               <p>• Duration: {exam?.duration_minutes} minutes.</p>
               <p>• Correct Answer: +{exam?.marks_per_question} mark.</p>
-              <p>• Negative Marking: -{exam?.negative_marking} mark per incorrect answer.</p>
+              {Number(exam?.negative_marking || 0) > 0 ? (
+                <p>• Negative Marking: -{exam?.negative_marking} mark per incorrect answer.</p>
+              ) : (
+                <p>• Negative Marking: No negative marking (0 marks deducted for incorrect answers).</p>
+              )}
               <p>• Unattempted: 0 marks (no negative penalty).</p>
               <p>• Green = Answered, Red = Not Answered, Purple = Marked for Review.</p>
               <p>• Fullscreen mode is enforced throughout the examination. Session locks on exit.</p>
@@ -1150,12 +1290,23 @@ export default function ExamAttemptPage() {
               Note: Fullscreen exit and re-entry events are recorded with precise timestamps in your proctoring audit log.
             </p>
           </div>
-          <button
-            onClick={handleReturnToFullscreen}
-            className="px-8 py-3.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-cyan-500/25 transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2 cursor-pointer"
-          >
-            <Maximize2 size={16} /> Return to Fullscreen
-          </button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-md">
+            <button
+              onClick={handleReturnToFullscreen}
+              className="flex-1 w-full px-6 py-3.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-cyan-500/25 transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Maximize2 size={16} /> Return to Fullscreen
+            </button>
+            <button
+              onClick={() => {
+                setIsFullscreen(false);
+                setFullscreenExited(false);
+              }}
+              className="w-full sm:w-auto px-5 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl border border-slate-700 transition cursor-pointer"
+            >
+              Resume in Window
+            </button>
+          </div>
         </div>
       )}
     </div>

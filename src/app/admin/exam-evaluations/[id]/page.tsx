@@ -372,7 +372,7 @@ export default function AdminAttemptEvaluationPage() {
         {/* Action Controls Bar */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
           <div className="text-xs text-slate-500">
-            <strong>Marking Scheme:</strong> +{exam.marks_per_question} correct, -{exam.negative_marking} incorrect, 0 unattempted.
+            <strong>Marking Scheme:</strong> +{exam.marks_per_question} correct, {Number(exam.negative_marking || 0) > 0 ? `-${exam.negative_marking} incorrect` : 'no negative penalty'}, 0 unattempted.
           </div>
 
           <div className="flex items-center gap-2">
@@ -488,7 +488,7 @@ export default function AdminAttemptEvaluationPage() {
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-100 flex items-center gap-1">
-                        <XCircle size={12} /> Incorrect Choice (-{q.negative_penalty})
+                        <XCircle size={12} /> Incorrect Choice {Number(q.negative_penalty || 0) > 0 ? `(-${q.negative_penalty})` : '(0 pts)'}
                       </span>
                     )
                   ) : (
