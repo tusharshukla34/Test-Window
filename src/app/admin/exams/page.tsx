@@ -370,10 +370,16 @@ export default function AdminExamsPage() {
                     }}
                     className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500"
                   />
-                  <div className="flex-1">
-                    <span className="font-bold text-slate-900">Q{idx + 1}. </span>
-                    <span>{q.question_text}</span>
-                    <span className="text-[10px] text-slate-400 block mt-0.5">Topic: {q.topic}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className="font-bold text-slate-900">Q{idx + 1}.</span>
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-200 text-slate-800 uppercase font-mono">
+                        {q.question_type === 'coding' ? `Coding (${q.coding_language || 'c'})` : q.question_type || 'MCQ'}
+                      </span>
+                      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1 rounded">+{q.marks}m</span>
+                      <span className="text-[10px] text-slate-400">({q.topic})</span>
+                    </div>
+                    <p className="line-clamp-2 text-slate-800">{q.question_text}</p>
                   </div>
                 </label>
               ))}

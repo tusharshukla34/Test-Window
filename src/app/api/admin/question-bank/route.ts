@@ -27,22 +27,46 @@ export async function POST(req: NextRequest) {
     await ensureCloudSyncReady();
     const body = await req.json();
 
-    const { subject, topic, difficulty, question_text, options, correct_option_id, explanation, marks, negative_penalty } = body;
+    const {
+      subject,
+      topic,
+      difficulty,
+      question_type = 'mcq',
+      coding_language,
+      code_template,
+      allowed_file_types,
+      max_file_size_mb,
+      question_text,
+      options,
+      correct_option_id,
+      explanation,
+      marks,
+      negative_penalty
+    } = body;
 
-    if (!subject || !topic || !question_text || !options || !correct_option_id) {
-      return NextResponse.json({ error: 'Subject, topic, question text, options, and correct answer key are required' }, { status: 400 });
+    if (!subject || !topic || !question_text) {
+      return NextResponse.json({ error: 'Subject, topic, and question text are required' }, { status: 400 });
+    }
+
+    if (question_type === 'mcq' && (!options || !correct_option_id)) {
+      return NextResponse.json({ error: 'Options and correct answer key are required for MCQ questions' }, { status: 400 });
     }
 
     const question = dbService.createQuestion({
       subject,
       topic,
       difficulty: difficulty || 'medium',
+      question_type,
+      coding_language,
+      code_template,
+      allowed_file_types,
+      max_file_size_mb: max_file_size_mb ? Number(max_file_size_mb) : undefined,
       question_text,
-      options,
-      correct_option_id,
+      options: question_type === 'mcq' ? options : [],
+      correct_option_id: question_type === 'mcq' ? correct_option_id : undefined,
       explanation,
       marks: Number(marks) || 1.0,
-      negative_penalty: Number(negative_penalty) || 0.25,
+      negative_penalty: Number(negative_penalty) || 0.0,
       created_by: session.userId
     });
 

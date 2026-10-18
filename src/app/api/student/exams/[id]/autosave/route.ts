@@ -11,10 +11,21 @@ export async function POST(
     const { id } = await params;
     const body = await req.json();
 
-    const { attempt_id, question_id, selected_option_id, is_marked_for_review, is_visited, time_spent_seconds } = body;
+    const {
+      attempt_id,
+      question_id,
+      selected_option_id,
+      descriptive_answer,
+      submitted_file_url,
+      submitted_file_name,
+      is_marked_for_review,
+      is_visited,
+      time_spent_seconds,
+      proctoring_event
+    } = body;
 
-    if (!attempt_id || !question_id) {
-      return NextResponse.json({ error: 'attempt_id and question_id are required' }, { status: 400 });
+    if (!attempt_id) {
+      return NextResponse.json({ error: 'attempt_id is required' }, { status: 400 });
     }
 
     await ensureCloudSyncReady();
@@ -23,12 +34,27 @@ export async function POST(
       await ensureCloudSyncReady(true);
     }
 
-    const result = dbService.autosaveExamResponse(attempt_id, session.userId, question_id, {
-      selected_option_id,
-      is_marked_for_review,
-      is_visited,
-      time_spent_seconds
-    });
+    // Record proctoring event if supplied (e.g. fullscreen exit/enter or visibility change)
+    if (proctoring_event && proctoring_event.type) {
+      dbService.recordExamProctoringEvent(attempt_id, {
+        type: proctoring_event.type,
+        timestamp: proctoring_event.timestamp || new Date().toISOString(),
+        details: proctoring_event.details
+      });
+    }
+
+    let result = { saved: true, remaining_seconds: 0 };
+    if (question_id) {
+      result = dbService.autosaveExamResponse(attempt_id, session.userId, question_id, {
+        selected_option_id,
+        descriptive_answer,
+        submitted_file_url,
+        submitted_file_name,
+        is_marked_for_review,
+        is_visited,
+        time_spent_seconds
+      });
+    }
 
     after(async () => {
       try {

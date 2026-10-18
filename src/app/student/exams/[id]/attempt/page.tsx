@@ -18,9 +18,14 @@ import {
   Pause,
   Play,
   LayoutGrid,
-  X
+  X,
+  Code2,
+  ShieldAlert,
+  UploadCloud
 } from 'lucide-react';
 import { ExamQuestionClient, AttemptResponse, ExamAttempt, Exam } from '@/lib/db/types';
+import CodeEditor from '@/components/exam/CodeEditor';
+import FileUploadQuestion from '@/components/exam/FileUploadQuestion';
 
 export default function ExamAttemptPage() {
   const params = useParams();
@@ -32,6 +37,9 @@ export default function ExamAttemptPage() {
   const [questions, setQuestions] = useState<ExamQuestionClient[]>([]);
   const [responses, setResponses] = useState<Record<string, {
     selected_option_id: string | null;
+    descriptive_answer: string | null;
+    submitted_file_url: string | null;
+    submitted_file_name: string | null;
     is_marked_for_review: boolean;
     is_visited: boolean;
     time_spent_seconds: number;
@@ -40,6 +48,8 @@ export default function ExamAttemptPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hasStartedExam, setHasStartedExam] = useState(false);
+  const [fullscreenExited, setFullscreenExited] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'failed'>('saved');
 
   // Authoritative server countdown (seconds remaining)
@@ -70,6 +80,9 @@ export default function ExamAttemptPage() {
         // Prepopulate responses map
         const respMap: Record<string, {
           selected_option_id: string | null;
+          descriptive_answer: string | null;
+          submitted_file_url: string | null;
+          submitted_file_name: string | null;
           is_marked_for_review: boolean;
           is_visited: boolean;
           time_spent_seconds: number;
@@ -78,6 +91,9 @@ export default function ExamAttemptPage() {
         data.questions.forEach((q: ExamQuestionClient, idx: number) => {
           respMap[q.id] = {
             selected_option_id: null,
+            descriptive_answer: q.code_template || '',
+            submitted_file_url: null,
+            submitted_file_name: null,
             is_marked_for_review: false,
             is_visited: idx === 0, // mark first question as visited
             time_spent_seconds: 0
@@ -89,6 +105,9 @@ export default function ExamAttemptPage() {
             if (respMap[r.question_id]) {
               respMap[r.question_id] = {
                 selected_option_id: r.selected_option_id || null,
+                descriptive_answer: r.descriptive_answer !== null && r.descriptive_answer !== undefined ? r.descriptive_answer : respMap[r.question_id].descriptive_answer,
+                submitted_file_url: r.submitted_file_url || null,
+                submitted_file_name: r.submitted_file_name || null,
                 is_marked_for_review: Boolean(r.is_marked_for_review),
                 is_visited: Boolean(r.is_visited),
                 time_spent_seconds: r.time_spent_seconds || 0
@@ -106,6 +125,26 @@ export default function ExamAttemptPage() {
         setSecondsRemaining(diffSecs);
 
         setLoading(false);
+        setHasStartedExam(true);
+
+        // Check or request fullscreen upon entering attempt workspace
+        if (typeof document !== 'undefined') {
+          if (!document.fullscreenElement) {
+            try {
+              document.documentElement.requestFullscreen().then(() => {
+                setIsFullscreen(true);
+                setFullscreenExited(false);
+              }).catch(() => {
+                setFullscreenExited(true);
+              });
+            } catch {
+              setFullscreenExited(true);
+            }
+          } else {
+            setIsFullscreen(true);
+            setFullscreenExited(false);
+          }
+        }
       })
       .catch((err: Error) => {
         setError(err.message);
@@ -142,20 +181,100 @@ export default function ExamAttemptPage() {
     return () => clearInterval(timer);
   }, [secondsRemaining]);
 
-  // Fullscreen change handler
+  // Fullscreen change and window visibility change monitoring
   useEffect(() => {
+    if (typeof document === 'undefined') return;
+
     const handleFsChange = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement));
+      const isFs = Boolean(document.fullscreenElement);
+      setIsFullscreen(isFs);
+
+      if (!isFs && hasStartedExam) {
+        setFullscreenExited(true);
+        // Log fullscreen exit event to server
+        if (attempt) {
+          fetch(`/api/student/exams/${examId}/autosave`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              attempt_id: attempt.id,
+              proctoring_event: {
+                type: 'fullscreen_exit',
+                timestamp: new Date().toISOString(),
+                details: 'Candidate exited fullscreen mode'
+              }
+            })
+          }).catch(() => {});
+        }
+      } else if (isFs && fullscreenExited) {
+        setFullscreenExited(false);
+        // Log fullscreen re-entry event to server
+        if (attempt) {
+          fetch(`/api/student/exams/${examId}/autosave`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              attempt_id: attempt.id,
+              proctoring_event: {
+                type: 'fullscreen_enter',
+                timestamp: new Date().toISOString(),
+                details: 'Candidate restored fullscreen mode'
+              }
+            })
+          }).catch(() => {});
+        }
+      }
     };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden && hasStartedExam && attempt) {
+        fetch(`/api/student/exams/${examId}/autosave`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            attempt_id: attempt.id,
+            proctoring_event: {
+              type: 'tab_hidden',
+              timestamp: new Date().toISOString(),
+              details: 'Tab switched or window minimized'
+            }
+          })
+        }).catch(() => {});
+      }
+    };
+
     document.addEventListener('fullscreenchange', handleFsChange);
-    return () => document.removeEventListener('fullscreenchange', handleFsChange);
-  }, []);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [hasStartedExam, fullscreenExited, attempt, examId]);
 
   const toggleFullscreen = () => {
+    if (typeof document === 'undefined') return;
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
+      document.documentElement.requestFullscreen().then(() => {
+        setIsFullscreen(true);
+        setFullscreenExited(false);
+      }).catch(() => {});
     } else {
       document.exitFullscreen().catch(() => {});
+    }
+  };
+
+  const handleReturnToFullscreen = () => {
+    if (typeof document === 'undefined') return;
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen().then(() => {
+        setIsFullscreen(true);
+        setFullscreenExited(false);
+      }).catch(() => {
+        alert('Please allow fullscreen mode in your browser to continue your examination.');
+      });
+    } else {
+      setFullscreenExited(false);
     }
   };
 
@@ -165,7 +284,14 @@ export default function ExamAttemptPage() {
   // Persist response to server
   const saveResponseToServer = useCallback(async (
     questionId: string,
-    updated: { selected_option_id?: string | null; is_marked_for_review?: boolean; is_visited?: boolean }
+    updated: {
+      selected_option_id?: string | null;
+      descriptive_answer?: string | null;
+      submitted_file_url?: string | null;
+      submitted_file_name?: string | null;
+      is_marked_for_review?: boolean;
+      is_visited?: boolean;
+    }
   ) => {
     if (!attempt) return;
     setSaveStatus('saving');
@@ -193,7 +319,7 @@ export default function ExamAttemptPage() {
     }
   }, [attempt, examId]);
 
-  // Select Option
+  // Select Option (MCQ)
   const handleSelectOption = (optId: string) => {
     if (!currentQuestion) return;
     setResponses(prev => ({
@@ -206,6 +332,52 @@ export default function ExamAttemptPage() {
     }));
   };
 
+  // Update Coding solution
+  const handleUpdateCode = (code: string) => {
+    if (!currentQuestion) return;
+    setResponses(prev => ({
+      ...prev,
+      [currentQuestion.id]: {
+        ...prev[currentQuestion.id],
+        descriptive_answer: code,
+        is_visited: true
+      }
+    }));
+  };
+
+  // Update Written solution
+  const handleUpdateWritten = (text: string) => {
+    if (!currentQuestion) return;
+    setResponses(prev => ({
+      ...prev,
+      [currentQuestion.id]: {
+        ...prev[currentQuestion.id],
+        descriptive_answer: text,
+        is_visited: true
+      }
+    }));
+  };
+
+  // Update File attachment
+  const handleUpdateFile = (fileUrl: string | null, fileName: string | null) => {
+    if (!currentQuestion) return;
+    setResponses(prev => ({
+      ...prev,
+      [currentQuestion.id]: {
+        ...prev[currentQuestion.id],
+        submitted_file_url: fileUrl,
+        submitted_file_name: fileName,
+        is_visited: true
+      }
+    }));
+
+    saveResponseToServer(currentQuestion.id, {
+      submitted_file_url: fileUrl,
+      submitted_file_name: fileName,
+      is_visited: true
+    });
+  };
+
   // Clear Response
   const handleClearResponse = () => {
     if (!currentQuestion) return;
@@ -213,19 +385,30 @@ export default function ExamAttemptPage() {
       ...prev,
       [currentQuestion.id]: {
         ...prev[currentQuestion.id],
-        selected_option_id: null
+        selected_option_id: null,
+        descriptive_answer: currentQuestion.code_template || '',
+        submitted_file_url: null,
+        submitted_file_name: null
       }
     }));
-    saveResponseToServer(currentQuestion.id, { selected_option_id: null });
+    saveResponseToServer(currentQuestion.id, {
+      selected_option_id: null,
+      descriptive_answer: currentQuestion.code_template || '',
+      submitted_file_url: null,
+      submitted_file_name: null
+    });
   };
 
   // Save & Next
   const handleSaveAndNext = () => {
     if (!currentQuestion) return;
-    const currentAnswer = responses[currentQuestion.id]?.selected_option_id || null;
+    const resp = responses[currentQuestion.id];
 
     saveResponseToServer(currentQuestion.id, {
-      selected_option_id: currentAnswer,
+      selected_option_id: resp?.selected_option_id || null,
+      descriptive_answer: resp?.descriptive_answer || null,
+      submitted_file_url: resp?.submitted_file_url || null,
+      submitted_file_name: resp?.submitted_file_name || null,
       is_marked_for_review: false,
       is_visited: true
     });
@@ -243,7 +426,7 @@ export default function ExamAttemptPage() {
   // Mark for Review & Next
   const handleMarkForReviewAndNext = () => {
     if (!currentQuestion) return;
-    const currentAnswer = responses[currentQuestion.id]?.selected_option_id || null;
+    const resp = responses[currentQuestion.id];
 
     setResponses(prev => ({
       ...prev,
@@ -255,7 +438,10 @@ export default function ExamAttemptPage() {
     }));
 
     saveResponseToServer(currentQuestion.id, {
-      selected_option_id: currentAnswer,
+      selected_option_id: resp?.selected_option_id || null,
+      descriptive_answer: resp?.descriptive_answer || null,
+      submitted_file_url: resp?.submitted_file_url || null,
+      submitted_file_name: resp?.submitted_file_name || null,
       is_marked_for_review: true,
       is_visited: true
     });
@@ -270,8 +456,20 @@ export default function ExamAttemptPage() {
     }
   };
 
-  // Jump directly to Question
+  // Jump directly to Question (saves current question before switching!)
   const handleJumpToQuestion = (idx: number) => {
+    if (currentQuestion) {
+      const resp = responses[currentQuestion.id];
+      saveResponseToServer(currentQuestion.id, {
+        selected_option_id: resp?.selected_option_id || null,
+        descriptive_answer: resp?.descriptive_answer || null,
+        submitted_file_url: resp?.submitted_file_url || null,
+        submitted_file_name: resp?.submitted_file_name || null,
+        is_marked_for_review: resp?.is_marked_for_review,
+        is_visited: true
+      });
+    }
+
     const targetQ = questions[idx];
     setResponses(prev => ({
       ...prev,
@@ -307,6 +505,24 @@ export default function ExamAttemptPage() {
     }
   };
 
+  // Helper to determine if a question has been answered
+  const isQuestionAnswered = (q: ExamQuestionClient, r: typeof responses[string] | undefined) => {
+    if (!r) return false;
+    const type = q.question_type || 'mcq';
+    if (type === 'coding') {
+      const code = r.descriptive_answer?.trim() || '';
+      const template = (q.code_template || '').trim();
+      return code.length > 0 && code !== template;
+    }
+    if (type === 'written') {
+      return Boolean(r.descriptive_answer && r.descriptive_answer.trim().length > 0);
+    }
+    if (type === 'file_upload') {
+      return Boolean(r.submitted_file_url);
+    }
+    return Boolean(r.selected_option_id);
+  };
+
   // Calculate palette status counters
   let answeredCount = 0;
   let notAnsweredCount = 0;
@@ -316,7 +532,7 @@ export default function ExamAttemptPage() {
 
   questions.forEach(q => {
     const r = responses[q.id];
-    const hasAnswer = Boolean(r?.selected_option_id);
+    const hasAnswer = isQuestionAnswered(q, r);
     const isMarked = Boolean(r?.is_marked_for_review);
     const isVisited = Boolean(r?.is_visited);
 
@@ -374,9 +590,9 @@ export default function ExamAttemptPage() {
           </div>
           <div className="min-w-0">
             <h3 className="font-extrabold text-xs text-slate-900 leading-tight truncate">
-              Tushar / Candidate
+              Candidate Workspace
             </h3>
-            <span className="text-[10px] text-slate-500">Live Mock Engine</span>
+            <span className="text-[10px] text-slate-500 font-medium">Exam Attempt Active</span>
           </div>
         </div>
 
@@ -420,15 +636,18 @@ export default function ExamAttemptPage() {
         </div>
 
         {/* SECTION Tab Title */}
-        <div className="bg-[#b3e5fc] px-3 py-1.5 rounded-md font-bold text-xs text-slate-800">
-          SECTION : Test
+        <div className="bg-[#b3e5fc] px-3 py-1.5 rounded-md font-bold text-xs text-slate-800 flex items-center justify-between">
+          <span>SECTION: Main</span>
+          <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 bg-white/60 rounded text-slate-700">
+            {currentQuestion.question_type || 'MCQ'}
+          </span>
         </div>
 
         {/* Question Buttons Palette Grid */}
         <div className="grid grid-cols-5 gap-2 max-h-[260px] sm:max-h-[300px] overflow-y-auto p-1">
           {questions.map((q, idx) => {
             const r = responses[q.id];
-            const hasAnswer = Boolean(r?.selected_option_id);
+            const hasAnswer = isQuestionAnswered(q, r);
             const isMarked = Boolean(r?.is_marked_for_review);
             const isVisited = Boolean(r?.is_visited);
             const isCurrent = currentIndex === idx;
@@ -459,7 +678,7 @@ export default function ExamAttemptPage() {
                 className={`h-9 w-9 text-xs font-bold flex items-center justify-center relative transition-transform ${btnClass} ${
                   isCurrent ? 'ring-2 ring-cyan-500 scale-105 z-10' : 'hover:opacity-90'
                 }`}
-                title={`Question ${idx + 1}`}
+                title={`Question ${idx + 1} (${q.question_type || 'mcq'})`}
               >
                 {idx + 1}
                 {badge}
@@ -505,6 +724,8 @@ export default function ExamAttemptPage() {
     </div>
   );
 
+  const qType = currentQuestion.question_type || 'mcq';
+
   return (
     <div ref={containerRef} className="min-h-screen flex flex-col bg-white text-slate-900 select-none overflow-x-hidden">
       {/* 1. TOP BAR */}
@@ -515,7 +736,7 @@ export default function ExamAttemptPage() {
             TS
           </div>
           <h1 className="text-xs sm:text-sm font-bold text-slate-800 truncate max-w-[130px] sm:max-w-xs md:max-w-md">
-            {exam?.title || 'Thermodynamics Mock Test'}
+            {exam?.title || 'Examination Workspace'}
           </h1>
         </div>
 
@@ -558,6 +779,9 @@ export default function ExamAttemptPage() {
           <button className="px-3 py-0.5 rounded-md bg-[#007791] text-white font-bold text-[11px] sm:text-xs shadow-xs">
             Test
           </button>
+          <span className="text-xs px-2 py-0.5 bg-slate-200 text-slate-700 font-semibold rounded uppercase">
+            {qType === 'coding' ? `Coding (${currentQuestion.coding_language || 'c'})` : qType === 'written' ? 'Written Answer' : qType === 'file_upload' ? 'File Upload' : 'MCQ'}
+          </span>
         </div>
         <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-slate-500 font-medium truncate max-w-[180px] sm:max-w-none">
           <span className={`w-2 h-2 rounded-full shrink-0 ${saveStatus === 'saving' ? 'bg-amber-500 animate-ping' : saveStatus === 'failed' ? 'bg-rose-500' : 'bg-emerald-500'}`}></span>
@@ -566,15 +790,20 @@ export default function ExamAttemptPage() {
       </div>
 
       {/* 3. MAIN WORKSPACE */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
         {/* Left: Question Panel */}
         <main className="flex-1 p-3.5 sm:p-6 lg:p-8 flex flex-col justify-between overflow-y-auto">
           <div className="space-y-4 sm:space-y-6 max-w-4xl w-full">
             {/* Question Meta Row */}
             <div className="flex flex-wrap items-center justify-between pb-2.5 border-b border-slate-200 gap-2">
-              <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
-                Question No. {currentIndex + 1}
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
+                  Question No. {currentIndex + 1}
+                </h2>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-cyan-50 border border-cyan-200 text-[#007791] uppercase">
+                  {qType}
+                </span>
+              </div>
 
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="flex items-center gap-1 font-mono text-[11px] sm:text-xs font-bold">
@@ -582,11 +811,6 @@ export default function ExamAttemptPage() {
                   <span className="px-1.5 sm:px-2 py-0.5 rounded-sm bg-[#16a34a] text-white">+{currentQuestion.marks}</span>
                   <span className="px-1 sm:px-1.5 py-0.5 rounded-sm bg-[#dc2626] text-white">-{currentQuestion.negative_penalty}</span>
                 </div>
-
-                <select className="text-[11px] sm:text-xs border border-slate-200 rounded-md p-1 bg-white">
-                  <option>English</option>
-                  <option>Hindi</option>
-                </select>
 
                 <button className="text-[11px] sm:text-xs text-slate-400 hover:text-rose-600 flex items-center gap-1 p-1">
                   <Flag size={12} />
@@ -600,32 +824,75 @@ export default function ExamAttemptPage() {
               {currentQuestion.question_text}
             </div>
 
-            {/* Options List */}
-            <div className="space-y-2.5 pt-2">
-              {currentQuestion.options.map((opt) => {
-                const isSelected = currentResp?.selected_option_id === opt.id;
-                return (
-                  <label
-                    key={opt.id}
-                    onClick={() => handleSelectOption(opt.id)}
-                    className={`flex items-start gap-3 p-3 sm:p-3.5 rounded-xl border-2 cursor-pointer transition select-none ${
-                      isSelected
-                        ? 'bg-cyan-50/50 border-[#00bcd4] text-slate-900 font-semibold shadow-xs'
-                        : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name={`question_${currentQuestion.id}`}
-                      checked={isSelected}
-                      onChange={() => handleSelectOption(opt.id)}
-                      className="mt-0.5 w-4 h-4 text-[#00bcd4] focus:ring-[#00bcd4] shrink-0 cursor-pointer"
-                    />
-                    <span className="text-xs sm:text-sm leading-snug break-words min-w-0 flex-1">{opt.text}</span>
-                  </label>
-                );
-              })}
-            </div>
+            {/* Question Body: Render by Question Type */}
+            {qType === 'coding' && (
+              <div className="pt-2">
+                <CodeEditor
+                  key={currentQuestion.id}
+                  value={currentResp?.descriptive_answer || currentQuestion.code_template || ''}
+                  language={currentQuestion.coding_language || 'python'}
+                  template={currentQuestion.code_template || ''}
+                  onChange={handleUpdateCode}
+                />
+              </div>
+            )}
+
+            {qType === 'written' && (
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
+                  <span>Write your descriptive answer below:</span>
+                  <span>{(currentResp?.descriptive_answer || '').trim().split(/\s+/).filter(Boolean).length} words</span>
+                </div>
+                <textarea
+                  value={currentResp?.descriptive_answer || ''}
+                  onChange={(e) => handleUpdateWritten(e.target.value)}
+                  placeholder="Type your complete solution, explanations, equations, or reasoning here..."
+                  rows={12}
+                  className="w-full p-4 rounded-xl border-2 border-slate-200 focus:border-[#00bcd4] focus:ring-1 focus:ring-[#00bcd4] outline-hidden text-sm font-sans text-slate-800 leading-relaxed resize-y bg-slate-50/50"
+                />
+              </div>
+            )}
+
+            {qType === 'file_upload' && (
+              <div className="pt-2">
+                <FileUploadQuestion
+                  key={currentQuestion.id}
+                  fileUrl={currentResp?.submitted_file_url || null}
+                  fileName={currentResp?.submitted_file_name || null}
+                  allowedExtensions={currentQuestion.allowed_file_types || '.pdf,.zip,.doc,.docx,.png,.jpg,.jpeg,.ipynb,.py,.java,.cpp,.c'}
+                  maxSizeMb={currentQuestion.max_file_size_mb || 10}
+                  onFileUploaded={handleUpdateFile}
+                />
+              </div>
+            )}
+
+            {qType === 'mcq' && (
+              <div className="space-y-2.5 pt-2">
+                {currentQuestion.options.map((opt) => {
+                  const isSelected = currentResp?.selected_option_id === opt.id;
+                  return (
+                    <label
+                      key={opt.id}
+                      onClick={() => handleSelectOption(opt.id)}
+                      className={`flex items-start gap-3 p-3 sm:p-3.5 rounded-xl border-2 cursor-pointer transition select-none ${
+                        isSelected
+                          ? 'bg-cyan-50/50 border-[#00bcd4] text-slate-900 font-semibold shadow-xs'
+                          : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name={`question_${currentQuestion.id}`}
+                        checked={isSelected}
+                        onChange={() => handleSelectOption(opt.id)}
+                        className="mt-0.5 w-4 h-4 text-[#00bcd4] focus:ring-[#00bcd4] shrink-0 cursor-pointer"
+                      />
+                      <span className="text-xs sm:text-sm leading-snug break-words min-w-0 flex-1">{opt.text}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Bottom Action Buttons */}
@@ -795,14 +1062,34 @@ export default function ExamAttemptPage() {
             <div className="p-3.5 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4">
               {questions.map((q, idx) => (
                 <div key={q.id} className="p-3 sm:p-3.5 rounded-xl border border-slate-200 text-xs space-y-2">
-                  <div className="font-bold text-slate-900 break-words">
-                    Q{idx + 1}. {q.question_text}
+                  <div className="flex items-center justify-between font-bold text-slate-900 break-words">
+                    <span>Q{idx + 1}. {q.question_text}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 uppercase font-mono">
+                      {q.question_type || 'mcq'}
+                    </span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-600">
-                    {q.options.map((opt, oIdx) => (
-                      <div key={opt.id} className="break-words">({String.fromCharCode(65 + oIdx)}) {opt.text}</div>
-                    ))}
-                  </div>
+                  {q.question_type === 'coding' && (
+                    <div className="text-slate-500 italic text-[11px] bg-slate-50 p-2 rounded">
+                      [Practical Coding Problem — Language: {q.coding_language?.toUpperCase() || 'PYTHON'}]
+                    </div>
+                  )}
+                  {q.question_type === 'written' && (
+                    <div className="text-slate-500 italic text-[11px] bg-slate-50 p-2 rounded">
+                      [Descriptive Written Answer Response]
+                    </div>
+                  )}
+                  {q.question_type === 'file_upload' && (
+                    <div className="text-slate-500 italic text-[11px] bg-slate-50 p-2 rounded">
+                      [Practical File Attachment Submission]
+                    </div>
+                  )}
+                  {(!q.question_type || q.question_type === 'mcq') && q.options && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-600">
+                      {q.options.map((opt, oIdx) => (
+                        <div key={opt.id} className="break-words">({String.fromCharCode(65 + oIdx)}) {opt.text}</div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -829,8 +1116,46 @@ export default function ExamAttemptPage() {
               <p>• Negative Marking: -{exam?.negative_marking} mark per incorrect answer.</p>
               <p>• Unattempted: 0 marks (no negative penalty).</p>
               <p>• Green = Answered, Red = Not Answered, Purple = Marked for Review.</p>
+              <p>• Fullscreen mode is enforced throughout the examination. Session locks on exit.</p>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 7. FULLSCREEN LOCK OVERLAY */}
+      {fullscreenExited && (
+        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-white text-center select-none animate-in fade-in">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-rose-500/20 border-2 border-rose-500/50 flex items-center justify-center text-rose-400 mb-5 shadow-2xl animate-pulse">
+            <ShieldAlert size={40} />
+          </div>
+          <span className="px-3.5 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono text-xs font-black tracking-widest uppercase mb-3">
+            Proctoring Guard Active
+          </span>
+          <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight mb-2">
+            SESSION LOCKED
+          </h2>
+          <p className="text-slate-300 text-xs sm:text-sm max-w-md leading-relaxed mb-6">
+            Fullscreen mode was exited or your examination window lost focus. For examination integrity, testing interactions are temporarily suspended until fullscreen is restored.
+          </p>
+          <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 max-w-md w-full text-left text-xs text-slate-400 space-y-2 mb-6">
+            <div className="flex items-center justify-between text-slate-300 font-bold">
+              <span>Saved Answers:</span>
+              <span className="text-emerald-400">Preserved in Database</span>
+            </div>
+            <div className="flex items-center justify-between text-slate-300 font-bold">
+              <span>Remaining Time:</span>
+              <span className="font-mono text-cyan-400">{formatTimer(secondsRemaining)}</span>
+            </div>
+            <p className="text-[11px] text-slate-500 pt-1.5 border-t border-slate-800">
+              Note: Fullscreen exit and re-entry events are recorded with precise timestamps in your proctoring audit log.
+            </p>
+          </div>
+          <button
+            onClick={handleReturnToFullscreen}
+            className="px-8 py-3.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-cyan-500/25 transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center gap-2 cursor-pointer"
+          >
+            <Maximize2 size={16} /> Return to Fullscreen
+          </button>
         </div>
       )}
     </div>

@@ -110,11 +110,25 @@ export interface QuestionOption {
   text: string;
 }
 
+export type QuestionType = 'mcq' | 'coding' | 'written' | 'file_upload';
+export type CodingLanguage = 'c' | 'cpp' | 'java' | 'python' | 'javascript';
+
+export interface ProctoringEvent {
+  type: 'fullscreen_exit' | 'fullscreen_enter' | 'tab_hidden' | 'tab_visible';
+  timestamp: string;
+  details?: string;
+}
+
 export interface QuestionBankItem {
   id: string;
   subject: string;
   topic: string;
   difficulty: 'easy' | 'medium' | 'hard';
+  question_type: QuestionType;
+  coding_language?: CodingLanguage | null;
+  code_template?: string | null;
+  allowed_file_types?: string | null;
+  max_file_size_mb?: number | null;
   question_text: string;
   question_image_url?: string | null;
   options: QuestionOption[];
@@ -132,6 +146,11 @@ export interface ExamQuestionClient {
   question_order: number;
   subject: string;
   topic: string;
+  question_type: QuestionType;
+  coding_language?: CodingLanguage | null;
+  code_template?: string | null;
+  allowed_file_types?: string | null;
+  max_file_size_mb?: number | null;
   question_text: string;
   question_image_url?: string | null;
   options: QuestionOption[];
@@ -194,6 +213,8 @@ export interface ExamAttempt {
   evaluated_by?: string | null;
   trainer_feedback?: string | null;
   evaluation_history?: string | null;
+  fullscreen_exit_count?: number;
+  proctoring_event_log?: string | null;
   exam?: Exam;
   student?: UserProfile;
 }
@@ -211,6 +232,8 @@ export interface AttemptResponse {
   manual_marks?: number | null;
   teacher_remarks?: string | null;
   descriptive_answer?: string | null;
+  submitted_file_url?: string | null;
+  submitted_file_name?: string | null;
   updated_at: string;
 }
 

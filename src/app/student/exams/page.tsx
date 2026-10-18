@@ -52,6 +52,7 @@ export default function StudentExamsPage() {
           const attempt = exam.attempt;
           const isCompleted = attempt?.status === 'completed';
           const isInProgress = attempt?.status === 'in_progress';
+          const isPublished = Boolean(attempt?.is_published);
 
           return (
             <ClayCard key={exam.id} className="flex flex-col justify-between hover:border-slate-300">
@@ -62,9 +63,15 @@ export default function StudentExamsPage() {
                   </span>
 
                   {isCompleted ? (
-                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                      Completed ({attempt.total_score} / {exam.max_marks} pts)
-                    </span>
+                    isPublished ? (
+                      <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        Published ({attempt.total_score} / {exam.max_marks} pts)
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-800 border border-purple-200">
+                        Submitted — Under Evaluation
+                      </span>
+                    )
                   ) : isInProgress ? (
                     <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 animate-pulse">
                       In Progress
@@ -100,8 +107,10 @@ export default function StudentExamsPage() {
               <div className="mt-5 pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
                 {isCompleted ? (
                   <>
-                    <div className="font-mono text-xs font-bold text-emerald-700">
-                      Score: {attempt.total_score} pts ({attempt.accuracy}% acc)
+                    <div className="font-mono text-xs font-bold text-slate-700">
+                      {isPublished
+                        ? `Score: ${attempt.total_score} pts (${attempt.accuracy ?? 0}% acc)`
+                        : 'Awaiting Trainer Evaluation'}
                     </div>
                     <ClayButton
                       variant="outline"
@@ -109,7 +118,7 @@ export default function StudentExamsPage() {
                       onClick={() => router.push(`/student/exams/${exam.id}/result`)}
                       className="w-full sm:w-auto"
                     >
-                      <Trophy size={14} className="text-amber-500" /> View Result
+                      <Trophy size={14} className="text-amber-500" /> {isPublished ? 'View Result' : 'View Status'}
                     </ClayButton>
                   </>
                 ) : isInProgress ? (

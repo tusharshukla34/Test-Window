@@ -45,6 +45,15 @@ export default function ExamInstructionsPage() {
     setStarting(true);
     setError(null);
 
+    // Request fullscreen mode following the student's explicit click gesture
+    try {
+      if (document.documentElement && document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {
+          console.warn('Fullscreen request deferred to examination page');
+        });
+      }
+    } catch {}
+
     try {
       const res = await fetch(`/api/student/exams/${examId}/start`, {
         method: 'POST'
@@ -199,12 +208,12 @@ export default function ExamInstructionsPage() {
               <div className="space-y-3">
                 <h3 className="font-bold text-slate-900">Read the following instructions carefully.</h3>
                 <ol className="list-decimal pl-5 space-y-2 text-slate-700">
-                  <li>The test having {exam.total_questions} total questions.</li>
-                  <li>Each question has 4 options out of which only one is correct.</li>
-                  <li>You have to finish the test in {exam.duration_minutes} minutes.</li>
-                  <li>You will be awarded {exam.marks_per_question} mark for each correct answer and {exam.negative_marking} marks will be deducted for each wrong answer.</li>
-                  <li>There is no negative marking for the questions that you have not attempted.</li>
-                  <li>You can write this test only once. Make sure that you complete the test before you submit the test and/or close the browser.</li>
+                  <li>This examination contains <strong>{exam.total_questions} total questions</strong> and may combine <strong>Multiple-Choice (MCQ), Practical Coding Questions, Written Answers, and Attachment Uploads</strong>.</li>
+                  <li>You have to finish the test in <strong>{exam.duration_minutes} minutes</strong>. An authoritative server timer tracks your attempt.</li>
+                  <li><strong>Practical Coding Questions:</strong> Write clean code directly in the code editor. Automatic indentation, bracket pairing, and syntax highlighting are enabled. You are NOT required to execute or run the code; Trainer Tushar Shukla will review and grade your solution manually.</li>
+                  <li><strong>Written & File Upload Questions:</strong> Enter complete explanatory answers or upload required practical project files (PDF, image, notebook, or code zip).</li>
+                  <li><strong>Mandatory Fullscreen Mode:</strong> The examination runs strictly in Fullscreen Mode. If you exit fullscreen, minimize the browser, or navigate away, your examination session will be <strong>LOCKED</strong> with a blocking security overlay until you restore fullscreen. Exiting fullscreen does not reset your timer or erase your answers.</li>
+                  <li>Your answers auto-save to the cloud as you navigate between questions.</li>
                 </ol>
               </div>
 
@@ -227,8 +236,8 @@ export default function ExamInstructionsPage() {
               </div>
 
               {/* Declaration Checkbox */}
-              <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2">
-                <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Declaration:</h4>
+              <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/60 space-y-2">
+                <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Examination Declaration:</h4>
                 <label className="flex items-start gap-2.5 cursor-pointer">
                   <input
                     type="checkbox"
@@ -236,8 +245,8 @@ export default function ExamInstructionsPage() {
                     onChange={(e) => setDeclarationChecked(e.target.checked)}
                     className="mt-0.5 w-4 h-4 rounded text-[#00bcd4] focus:ring-[#00bcd4] cursor-pointer"
                   />
-                  <span className="text-xs text-slate-700 font-medium">
-                    I have understood and agree to all the instructions.
+                  <span className="text-xs text-slate-800 font-medium leading-relaxed">
+                    I declare that I have read and agree to all examination guidelines. I understand that exiting fullscreen mode will trigger a <strong>SESSION LOCKED</strong> screen, and all fullscreen events will be logged for Trainer Tushar Shukla.
                   </span>
                 </label>
               </div>

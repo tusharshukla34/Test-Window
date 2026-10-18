@@ -11,6 +11,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "@supabase/supabase-js": "^2.117.3",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^13.0.3",

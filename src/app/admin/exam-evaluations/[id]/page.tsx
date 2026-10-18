@@ -16,7 +16,12 @@ import {
   Sparkles,
   HelpCircle,
   CheckSquare,
-  Award
+  Award,
+  Code2,
+  Download,
+  ShieldAlert,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { ClayCard, ClayButton } from '@/components/ui/ClayComponents';
 import { Exam, ExamAttempt, UserProfile, Batch, QuestionOption } from '@/lib/db/types';
@@ -26,14 +31,22 @@ interface EvaluationQuestionItem {
   question_order: number;
   subject: string;
   topic: string;
+  question_type?: 'mcq' | 'coding' | 'written' | 'file_upload';
+  coding_language?: 'c' | 'cpp' | 'java' | 'python' | 'javascript';
+  code_template?: string | null;
+  allowed_file_types?: string | null;
+  max_file_size_mb?: number | null;
   question_text: string;
   question_image_url?: string | null;
   options: QuestionOption[];
-  correct_option_id: string;
+  correct_option_id?: string;
   explanation?: string | null;
   marks: number;
   negative_penalty: number;
   selected_option_id: string | null;
+  descriptive_answer?: string | null;
+  submitted_file_url?: string | null;
+  submitted_file_name?: string | null;
   is_marked_for_review: boolean;
   is_visited: boolean;
   suggested_score: number | null;
@@ -55,6 +68,7 @@ export default function AdminAttemptEvaluationPage() {
   const [exam, setExam] = useState<Exam | null>(null);
   const [questions, setQuestions] = useState<EvaluationQuestionItem[]>([]);
   const [evaluationHistory, setEvaluationHistory] = useState<any[]>([]);
+  const [showProctoringLog, setShowProctoringLog] = useState(false);
 
   // Form State
   const [manualMarks, setManualMarks] = useState<Record<string, number>>({});
@@ -269,7 +283,7 @@ export default function AdminAttemptEvaluationPage() {
             <h1 className="text-2xl font-black text-slate-900 tracking-tight">
               {student.name}
             </h1>
-            <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
+            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mt-1">
               <span className="font-mono font-bold text-slate-700">{student.student_id}</span>
               <span>•</span>
               <span className="font-semibold text-indigo-700">{batch?.name || 'Assigned Cohort'}</span>
@@ -284,6 +298,24 @@ export default function AdminAttemptEvaluationPage() {
                     })
                   : 'N/A'}
               </span>
+              <span>•</span>
+              <button
+                type="button"
+                onClick={() => setShowProctoringLog(!showProctoringLog)}
+                className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-bold text-[11px] border cursor-pointer transition ${
+                  (attempt?.fullscreen_exit_count || 0) > 0
+                    ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                }`}
+              >
+                <ShieldAlert size={12} />
+                <span>
+                  {(attempt?.fullscreen_exit_count || 0) > 0
+                    ? `${attempt?.fullscreen_exit_count} Fullscreen Exit${(attempt?.fullscreen_exit_count || 0) > 1 ? 's' : ''}`
+                    : 'Fullscreen Protected (0 Exits)'}
+                </span>
+                {showProctoringLog ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              </button>
             </div>
           </div>
 
@@ -301,6 +333,41 @@ export default function AdminAttemptEvaluationPage() {
             </span>
           </div>
         </div>
+
+        {/* Expandable Proctoring Audit Timeline */}
+        {showProctoringLog && (
+          <div className="p-3.5 rounded-xl bg-slate-900 text-slate-200 text-xs space-y-2 border border-slate-800 animate-in fade-in">
+            <div className="flex items-center justify-between text-[11px] font-bold text-cyan-400 border-b border-slate-800 pb-1.5">
+              <span className="flex items-center gap-1.5">
+                <ShieldCheck size={14} /> Fullscreen & Focus Integrity Audit Timeline
+              </span>
+              <span>{Array.isArray(attempt?.proctoring_event_log) ? attempt?.proctoring_event_log.length : 0} Events Recorded</span>
+            </div>
+            {Array.isArray(attempt?.proctoring_event_log) && attempt.proctoring_event_log.length > 0 ? (
+              <div className="space-y-1.5 max-h-48 overflow-y-auto font-mono text-[11px]">
+                {attempt.proctoring_event_log.map((evt: any, eIdx: number) => (
+                  <div key={eIdx} className="flex items-start justify-between gap-2 p-1.5 rounded bg-slate-800/60">
+                    <div className="flex items-center gap-2">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                        evt.type === 'fullscreen_exit' ? 'bg-rose-900 text-rose-200' :
+                        evt.type === 'tab_hidden' ? 'bg-amber-900 text-amber-200' :
+                        'bg-emerald-900 text-emerald-200'
+                      }`}>
+                        {evt.type}
+                      </span>
+                      <span className="text-slate-300 font-sans">{evt.details || 'Event logged'}</span>
+                    </div>
+                    <span className="text-slate-500 shrink-0">
+                      {new Date(evt.timestamp).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-slate-500 italic text-[11px]">No proctoring violation events were recorded. The candidate remained in uninterrupted fullscreen mode throughout.</p>
+            )}
+          </div>
+        )}
 
         {/* Action Controls Bar */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
@@ -358,7 +425,7 @@ export default function AdminAttemptEvaluationPage() {
         <textarea
           value={trainerFeedback}
           onChange={e => setTrainerFeedback(e.target.value)}
-          placeholder="Enter detailed trainer feedback for this student's attempt (e.g. Excellent conceptual grasp on Rankine cycles; review throttling processes and entropy generation)."
+          placeholder="Enter detailed trainer feedback for this student's attempt (e.g. Excellent implementation of dynamic programming; review edge cases for empty inputs)."
           className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:bg-white bg-slate-50 leading-relaxed"
           rows={3}
         />
@@ -376,8 +443,15 @@ export default function AdminAttemptEvaluationPage() {
         </div>
 
         {questions.map((q, idx) => {
+          const type = q.question_type || 'mcq';
+          const isMcq = type === 'mcq';
           const isCorrect = q.is_correct === true;
-          const isUnattempted = !q.selected_option_id;
+          const isUnattempted = isMcq
+            ? !q.selected_option_id
+            : type === 'file_upload'
+            ? !q.submitted_file_url
+            : !(q.descriptive_answer && q.descriptive_answer.trim().length > 0 && q.descriptive_answer.trim() !== (q.code_template || '').trim());
+
           const currentMarks = manualMarks[q.id] ?? (q.suggested_score ?? 0);
           const currentRemarks = teacherRemarks[q.id] ?? '';
 
@@ -385,76 +459,185 @@ export default function AdminAttemptEvaluationPage() {
             <ClayCard key={q.id} className="p-5 bg-white border border-slate-200/90 space-y-4 shadow-xs">
               {/* Question Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-bold text-xs text-slate-800 bg-slate-100 px-2.5 py-1 rounded-lg">
                     Question No. {idx + 1}
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                    type === 'coding' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                    type === 'written' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
+                    type === 'file_upload' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                    'bg-slate-100 text-slate-700'
+                  }`}>
+                    {type === 'coding' ? `Coding (${q.coding_language || 'c'})` : type === 'written' ? 'Written' : type === 'file_upload' ? 'File Upload' : 'MCQ'}
                   </span>
                   <span className="text-xs text-slate-500 font-medium">
                     {q.topic} ({q.subject})
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   {isUnattempted ? (
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
                       Unattempted (0 pts)
                     </span>
-                  ) : isCorrect ? (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center gap-1">
-                      <CheckCircle2 size={12} /> Correct Choice (+{q.marks})
-                    </span>
+                  ) : isMcq ? (
+                    isCorrect ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center gap-1">
+                        <CheckCircle2 size={12} /> Correct Choice (+{q.marks})
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-100 flex items-center gap-1">
+                        <XCircle size={12} /> Incorrect Choice (-{q.negative_penalty})
+                      </span>
+                    )
                   ) : (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-100 flex items-center gap-1">
-                      <XCircle size={12} /> Incorrect Choice (-{q.negative_penalty})
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 flex items-center gap-1">
+                      <Sparkles size={12} /> Response Submitted
                     </span>
                   )}
 
                   <span className="text-[11px] font-mono text-slate-400">
-                    Auto-suggested: {q.suggested_score ?? 0}
+                    Max: +{q.marks}
                   </span>
                 </div>
               </div>
 
               {/* Question Text */}
-              <p className="text-sm font-bold text-slate-900 leading-snug">
+              <p className="text-sm font-bold text-slate-900 leading-snug break-words">
                 {q.question_text}
               </p>
 
-              {/* Options Breakdown */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {q.options.map(opt => {
-                  const isChosen = opt.id === q.selected_option_id;
-                  const isRight = opt.id === q.correct_option_id;
-
-                  let optClass = 'bg-slate-50 border-slate-200 text-slate-700';
-                  if (isRight) {
-                    optClass = 'bg-emerald-50 border-emerald-300 text-emerald-950 font-bold';
-                  } else if (isChosen && !isRight) {
-                    optClass = 'bg-rose-50 border-rose-300 text-rose-950 font-bold';
-                  }
-
-                  return (
-                    <div key={opt.id} className={`p-2.5 rounded-xl border text-xs flex items-center gap-2 ${optClass}`}>
-                      <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
-                        isRight ? 'bg-emerald-600 text-white' : isChosen ? 'bg-rose-600 text-white' : 'bg-slate-200 text-slate-700'
-                      }`}>
-                        {opt.id.replace('opt', '')}
+              {/* Question Body: Type Specific Candidate Submission */}
+              {type === 'coding' && (
+                <div className="space-y-2">
+                  <div className="rounded-xl border border-slate-700 bg-slate-950 p-4 text-xs font-mono text-slate-100 overflow-x-auto shadow-inner">
+                    <div className="flex items-center justify-between text-[11px] text-cyan-400 border-b border-slate-800 pb-2 mb-2 font-sans font-bold">
+                      <span className="flex items-center gap-1.5">
+                        <Code2 size={14} /> Candidate Code Submission ({q.coding_language?.toUpperCase() || 'PYTHON'})
                       </span>
-                      <span className="flex-1">{opt.text}</span>
-                      {isRight && <span className="text-[10px] font-bold text-emerald-700">(Correct Answer)</span>}
-                      {isChosen && !isRight && <span className="text-[10px] font-bold text-rose-700">(Student Selection)</span>}
+                      <span>
+                        {q.descriptive_answer ? `${q.descriptive_answer.split('\n').length} lines` : '0 lines'}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
+                    {q.descriptive_answer ? (
+                      <pre className="whitespace-pre overflow-x-auto leading-relaxed">{q.descriptive_answer}</pre>
+                    ) : (
+                      <span className="text-slate-500 italic font-sans">No code solution was submitted for this question.</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {type === 'written' && (
+                <div className="rounded-xl border border-purple-200 bg-purple-50/40 p-4 text-xs font-sans text-slate-800 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-purple-900 border-b border-purple-100 pb-1.5">
+                    <span>Candidate Written Answer Response</span>
+                    <span>
+                      {q.descriptive_answer ? `${q.descriptive_answer.trim().split(/\s+/).filter(Boolean).length} words` : '0 words'}
+                    </span>
+                  </div>
+                  {q.descriptive_answer ? (
+                    <p className="whitespace-pre-wrap leading-relaxed text-slate-800 font-medium">
+                      {q.descriptive_answer}
+                    </p>
+                  ) : (
+                    <span className="text-slate-400 italic">No written response was submitted for this question.</span>
+                  )}
+                </div>
+              )}
+
+              {type === 'file_upload' && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 text-xs space-y-2">
+                  <span className="text-[11px] font-bold text-amber-900 block">Candidate Practical File Attachment</span>
+                  {q.submitted_file_url ? (
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-white border border-amber-200 gap-3">
+                      <div className="flex items-center gap-2 text-slate-800 font-bold truncate">
+                        <FileText size={16} className="text-amber-600 shrink-0" />
+                        <span className="truncate">{q.submitted_file_name || 'candidate_submission_file'}</span>
+                      </div>
+                      <a
+                        href={q.submitted_file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download={q.submitted_file_name || 'submission'}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs transition shrink-0 shadow-xs"
+                      >
+                        <Download size={13} /> Download & Verify File
+                      </a>
+                    </div>
+                  ) : (
+                    <span className="text-slate-400 italic">No file attachment was submitted by candidate.</span>
+                  )}
+                </div>
+              )}
+
+              {isMcq && q.options && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {q.options.map(opt => {
+                    const isChosen = opt.id === q.selected_option_id;
+                    const isRight = opt.id === q.correct_option_id;
+
+                    let optClass = 'bg-slate-50 border-slate-200 text-slate-700';
+                    if (isRight) {
+                      optClass = 'bg-emerald-50 border-emerald-300 text-emerald-950 font-bold';
+                    } else if (isChosen && !isRight) {
+                      optClass = 'bg-rose-50 border-rose-300 text-rose-950 font-bold';
+                    }
+
+                    return (
+                      <div key={opt.id} className={`p-2.5 rounded-xl border text-xs flex items-center gap-2 ${optClass}`}>
+                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                          isRight ? 'bg-emerald-600 text-white' : isChosen ? 'bg-rose-600 text-white' : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          {opt.id.replace('opt', '')}
+                        </span>
+                        <span className="flex-1 break-words">{opt.text}</span>
+                        {isRight && <span className="text-[10px] font-bold text-emerald-700">(Correct Answer)</span>}
+                        {isChosen && !isRight && <span className="text-[10px] font-bold text-rose-700">(Student Selection)</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Manual Grading Inputs Bar */}
               <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4 grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
                 {/* Manual Marks Input */}
                 <div>
-                  <label className="text-[11px] font-bold text-slate-700 mb-1 block">
-                    Marks Awarded (Points)
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-slate-700 block">
+                      Marks Awarded (Max: {q.marks})
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setManualMarks(prev => ({ ...prev, [q.id]: q.marks }))}
+                        className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+                        title="Award Full Marks"
+                      >
+                        +{q.marks}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setManualMarks(prev => ({ ...prev, [q.id]: 0 }))}
+                        className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-800 hover:bg-slate-300"
+                        title="Award 0 Marks"
+                      >
+                        0
+                      </button>
+                      {q.negative_penalty > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setManualMarks(prev => ({ ...prev, [q.id]: -q.negative_penalty }))}
+                          className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 hover:bg-rose-200"
+                          title="Apply Negative Penalty"
+                        >
+                          -{q.negative_penalty}
+                        </button>
+                      )}
+                    </div>
+                  </div>
                   <input
                     type="number"
                     step="0.25"

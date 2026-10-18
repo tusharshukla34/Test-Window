@@ -383,6 +383,19 @@ function initSchema() {
   try { db.exec(`ALTER TABLE attempt_responses ADD COLUMN manual_marks REAL`); } catch {}
   try { db.exec(`ALTER TABLE attempt_responses ADD COLUMN teacher_remarks TEXT`); } catch {}
   try { db.exec(`ALTER TABLE attempt_responses ADD COLUMN descriptive_answer TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE attempt_responses ADD COLUMN submitted_file_url TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE attempt_responses ADD COLUMN submitted_file_name TEXT`); } catch {}
+
+  // Mixed question types & coding practicals
+  try { db.exec(`ALTER TABLE question_bank ADD COLUMN question_type TEXT NOT NULL DEFAULT 'mcq'`); } catch {}
+  try { db.exec(`ALTER TABLE question_bank ADD COLUMN coding_language TEXT DEFAULT 'python'`); } catch {}
+  try { db.exec(`ALTER TABLE question_bank ADD COLUMN code_template TEXT`); } catch {}
+  try { db.exec(`ALTER TABLE question_bank ADD COLUMN allowed_file_types TEXT DEFAULT 'pdf,png,jpg,ipynb,zip,txt,py,java,cpp'`); } catch {}
+  try { db.exec(`ALTER TABLE question_bank ADD COLUMN max_file_size_mb INTEGER DEFAULT 10`); } catch {}
+
+  // Proctoring and fullscreen lock tracking
+  try { db.exec(`ALTER TABLE exam_attempts ADD COLUMN fullscreen_exit_count INTEGER NOT NULL DEFAULT 0`); } catch {}
+  try { db.exec(`ALTER TABLE exam_attempts ADD COLUMN proctoring_event_log TEXT DEFAULT '[]'`); } catch {}
 
   // Ensure assignments table includes ipynb and coding formats
   try {
@@ -1532,28 +1545,40 @@ export const dbService = {
     subject: string;
     topic: string;
     difficulty: 'easy' | 'medium' | 'hard';
+    question_type?: 'mcq' | 'coding' | 'written' | 'file_upload';
+    coding_language?: 'c' | 'cpp' | 'java' | 'python' | 'javascript';
+    code_template?: string;
+    allowed_file_types?: string;
+    max_file_size_mb?: number;
     question_text: string;
-    options: { id: string; text: string }[];
-    correct_option_id: string;
+    options?: { id: string; text: string }[];
+    correct_option_id?: string;
     explanation?: string;
     marks: number;
     negative_penalty: number;
     created_by?: string;
   }): QuestionBankItem {
     const id = `q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const qType = data.question_type || 'mcq';
     db.prepare(`
       INSERT INTO question_bank (
-        id, subject, topic, difficulty, question_text, options,
-        correct_option_id, explanation, marks, negative_penalty, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, subject, topic, difficulty, question_type, coding_language,
+        code_template, allowed_file_types, max_file_size_mb,
+        question_text, options, correct_option_id, explanation, marks, negative_penalty, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       data.subject,
       data.topic,
       data.difficulty,
+      qType,
+      data.coding_language || null,
+      data.code_template || null,
+      data.allowed_file_types || null,
+      data.max_file_size_mb || null,
       data.question_text,
-      JSON.stringify(data.options),
-      data.correct_option_id,
+      JSON.stringify(data.options || []),
+      data.correct_option_id || (qType !== 'mcq' ? 'manual_evaluation' : 'none'),
       data.explanation || null,
       data.marks,
       data.negative_penalty,
@@ -1598,10 +1623,20 @@ export const dbService = {
       const isEligible = eBatchIds.some(bId => studentBatchIds.has(bId));
       const attempt = getAttemptStmt.get(exam.id, studentId) as ExamAttempt | undefined;
 
+      let sanitizedAttempt = attempt ? { ...attempt, is_published: Boolean(attempt.is_published) } : null;
+      if (sanitizedAttempt && !sanitizedAttempt.is_published) {
+        sanitizedAttempt.total_score = null;
+        sanitizedAttempt.percentage = null;
+        sanitizedAttempt.accuracy = null;
+        sanitizedAttempt.total_correct = 0;
+        sanitizedAttempt.total_incorrect = 0;
+        sanitizedAttempt.trainer_feedback = null;
+      }
+
       return {
         ...exam,
         is_eligible: isEligible,
-        attempt: attempt || null
+        attempt: sanitizedAttempt
       };
     }).filter(e => e.is_eligible);
   },
@@ -1776,7 +1811,8 @@ export const dbService = {
 
     // Fetch sanitized client questions (CRITICAL: without correct_option_id or explanation!)
     const rawQuestions = db.prepare(`
-      SELECT q.id, eq.question_order, q.subject, q.topic, q.question_text, q.question_image_url, q.options, q.marks, q.negative_penalty
+      SELECT q.id, eq.question_order, q.subject, q.topic, q.question_text, q.question_image_url, q.options, q.marks, q.negative_penalty,
+             COALESCE(q.question_type, 'mcq') as question_type, q.coding_language, q.code_template, q.allowed_file_types, q.max_file_size_mb
       FROM question_bank q
       JOIN exam_questions eq ON q.id = eq.question_id
       WHERE eq.exam_id = ?
@@ -1788,9 +1824,14 @@ export const dbService = {
       question_order: q.question_order,
       subject: q.subject,
       topic: q.topic,
+      question_type: (q.question_type || 'mcq') as any,
+      coding_language: q.coding_language || null,
+      code_template: q.code_template || null,
+      allowed_file_types: q.allowed_file_types || null,
+      max_file_size_mb: q.max_file_size_mb || null,
       question_text: q.question_text,
       question_image_url: q.question_image_url,
-      options: JSON.parse(q.options),
+      options: q.options ? JSON.parse(q.options) : [],
       marks: q.marks,
       negative_penalty: q.negative_penalty
     }));
@@ -1820,6 +1861,9 @@ export const dbService = {
     questionId: string,
     payload: {
       selected_option_id?: string | null;
+      descriptive_answer?: string | null;
+      submitted_file_url?: string | null;
+      submitted_file_name?: string | null;
       is_marked_for_review?: boolean;
       is_visited?: boolean;
       time_spent_seconds?: number;
@@ -1858,6 +1902,9 @@ export const dbService = {
       db.prepare(`
         UPDATE attempt_responses
         SET selected_option_id = coalesce(?, selected_option_id),
+            descriptive_answer = coalesce(?, descriptive_answer),
+            submitted_file_url = coalesce(?, submitted_file_url),
+            submitted_file_name = coalesce(?, submitted_file_name),
             is_marked_for_review = coalesce(?, is_marked_for_review),
             is_visited = coalesce(?, is_visited),
             time_spent_seconds = time_spent_seconds + coalesce(?, 0),
@@ -1865,6 +1912,9 @@ export const dbService = {
         WHERE attempt_id = ? AND question_id = ?
       `).run(
         payload.selected_option_id !== undefined ? payload.selected_option_id : null,
+        payload.descriptive_answer !== undefined ? payload.descriptive_answer : null,
+        payload.submitted_file_url !== undefined ? payload.submitted_file_url : null,
+        payload.submitted_file_name !== undefined ? payload.submitted_file_name : null,
         payload.is_marked_for_review !== undefined ? (payload.is_marked_for_review ? 1 : 0) : null,
         payload.is_visited !== undefined ? (payload.is_visited ? 1 : 0) : null,
         payload.time_spent_seconds || 0,
@@ -1874,13 +1924,16 @@ export const dbService = {
     } else {
       db.prepare(`
         INSERT INTO attempt_responses (
-          id, attempt_id, question_id, selected_option_id, is_marked_for_review, is_visited, time_spent_seconds
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          id, attempt_id, question_id, selected_option_id, descriptive_answer, submitted_file_url, submitted_file_name, is_marked_for_review, is_visited, time_spent_seconds
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         `resp-${Date.now().toString(36)}`,
         attemptId,
         questionId,
         payload.selected_option_id || null,
+        payload.descriptive_answer || null,
+        payload.submitted_file_url || null,
+        payload.submitted_file_name || null,
         payload.is_marked_for_review ? 1 : 0,
         payload.is_visited ? 1 : 0,
         payload.time_spent_seconds || 0
@@ -1891,6 +1944,35 @@ export const dbService = {
       saved: true,
       remaining_seconds: Math.max(0, Math.floor(remainingMs / 1000))
     };
+  },
+
+  recordExamProctoringEvent(attemptId: string, event: { type: string; timestamp: string; details?: string }): void {
+    try {
+      const attempt = db.prepare('SELECT fullscreen_exit_count, proctoring_event_log FROM exam_attempts WHERE id = ?').get(attemptId) as { fullscreen_exit_count?: number; proctoring_event_log?: string } | undefined;
+      if (!attempt) return;
+
+      let log: any[] = [];
+      try {
+        if (attempt.proctoring_event_log) {
+          log = JSON.parse(attempt.proctoring_event_log);
+        }
+      } catch {}
+      log.push(event);
+
+      let exitCount = attempt.fullscreen_exit_count || 0;
+      if (event.type === 'fullscreen_exit') {
+        exitCount += 1;
+      }
+
+      db.prepare(`
+        UPDATE exam_attempts
+        SET fullscreen_exit_count = ?,
+            proctoring_event_log = ?
+        WHERE id = ?
+      `).run(exitCount, JSON.stringify(log), attemptId);
+    } catch (err) {
+      console.warn('[PROCTORING EVENT LOG ERROR]:', err);
+    }
   },
 
   getExamAttemptSummary(attemptId: string, studentId: string): {
@@ -1925,7 +2007,11 @@ export const dbService = {
     let answeredAndMarked = 0;
 
     for (const r of responses) {
-      const hasAnswer = r.selected_option_id !== null && r.selected_option_id !== '';
+      const hasAnswer = Boolean(
+        (r.selected_option_id !== null && r.selected_option_id !== '') ||
+        (r.descriptive_answer !== null && r.descriptive_answer !== '' && r.descriptive_answer !== undefined) ||
+        (r.submitted_file_url !== null && r.submitted_file_url !== '' && r.submitted_file_url !== undefined)
+      );
       const isMarked = Boolean(r.is_marked_for_review);
       const isVisited = Boolean(r.is_visited);
 
@@ -1978,11 +2064,11 @@ export const dbService = {
     const exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(attempt.exam_id) as Exam;
     const responses = db.prepare('SELECT * FROM attempt_responses WHERE attempt_id = ?').all(attemptId) as AttemptResponse[];
     const questions = db.prepare(`
-      SELECT q.id, q.correct_option_id, q.marks, q.negative_penalty
+      SELECT q.id, q.correct_option_id, q.marks, q.negative_penalty, COALESCE(q.question_type, 'mcq') as question_type
       FROM question_bank q
       JOIN exam_questions eq ON q.id = eq.question_id
       WHERE eq.exam_id = ?
-    `).all(exam.id) as { id: string; correct_option_id: string; marks: number; negative_penalty: number }[];
+    `).all(exam.id) as { id: string; correct_option_id: string; marks: number; negative_penalty: number; question_type: string }[];
 
     const questionMap = new Map(questions.map(q => [q.id, q]));
 
@@ -2001,6 +2087,19 @@ export const dbService = {
     for (const resp of responses) {
       const q = questionMap.get(resp.question_id);
       if (!q) continue;
+
+      // Coding, Written, or File Upload: Do NOT auto-grade; leave for Trainer manual evaluation
+      if (q.question_type !== 'mcq') {
+        const hasWork = (resp.descriptive_answer && resp.descriptive_answer.trim().length > 0) ||
+                        (resp.submitted_file_url && resp.submitted_file_url.trim().length > 0);
+        if (hasWork) {
+          updateRespStmt.run(null, null, attemptId, resp.question_id);
+        } else {
+          unattemptedCount++;
+          updateRespStmt.run(null, 0, attemptId, resp.question_id);
+        }
+        continue;
+      }
 
       if (!resp.selected_option_id) {
         unattemptedCount++;
@@ -2077,13 +2176,16 @@ export const dbService = {
     const finalized = db.prepare('SELECT * FROM exam_attempts WHERE id = ?').get(attemptId) as ExamAttempt;
 
     // Send neutral confirmation notification to student (NO marks exposed)
-    this.createNotification({
-      user_id: studentId,
-      title: 'Exam Submitted Successfully',
-      message: `Your examination "${exam.title}" has been submitted successfully. Your trainer will evaluate your answers and publish the results when they are ready.`,
-      type: 'exam',
-      link: `/student/exams/${exam.id}/result`
-    });
+    const targetUserId = studentId || attempt.student_id;
+    if (targetUserId) {
+      this.createNotification({
+        user_id: targetUserId,
+        title: 'Exam Submitted Successfully',
+        message: `Your examination "${exam.title}" has been submitted successfully. Your trainer will evaluate your answers and publish the results when they are ready.`,
+        type: 'exam',
+        link: `/student/exams/${exam.id}/result`
+      });
+    }
 
     return finalized;
   },
@@ -2153,9 +2255,12 @@ export const dbService = {
 
     // When published: return full score card and reviewed answers
     const reviewQuestions = db.prepare(`
-      SELECT q.id, eq.question_order, q.subject, q.topic, q.question_text, q.question_image_url,
+      SELECT q.id, eq.question_order, q.subject, q.topic,
+             COALESCE(q.question_type, 'mcq') as question_type, q.coding_language, q.code_template, q.allowed_file_types, q.max_file_size_mb,
+             q.question_text, q.question_image_url,
              q.options, q.marks, q.negative_penalty, q.correct_option_id, q.explanation,
-             ar.selected_option_id, ar.is_correct, ar.manual_marks, ar.teacher_remarks
+             ar.selected_option_id, ar.descriptive_answer, ar.submitted_file_url, ar.submitted_file_name,
+             ar.is_correct, ar.manual_marks, ar.teacher_remarks
       FROM question_bank q
       JOIN exam_questions eq ON q.id = eq.question_id
       LEFT JOIN attempt_responses ar ON q.id = ar.question_id AND ar.attempt_id = ?
@@ -2170,7 +2275,7 @@ export const dbService = {
       status_message: 'Result Published',
       questions_review: reviewQuestions.map(q => ({
         ...q,
-        options: JSON.parse(q.options)
+        options: q.options ? JSON.parse(q.options) : []
       }))
     };
   },
@@ -2697,6 +2802,11 @@ export const dbService = {
         eq.question_order,
         q.subject,
         q.topic,
+        COALESCE(q.question_type, 'mcq') as question_type,
+        q.coding_language,
+        q.code_template,
+        q.allowed_file_types,
+        q.max_file_size_mb,
         q.question_text,
         q.question_image_url,
         q.options,
@@ -2705,6 +2815,9 @@ export const dbService = {
         q.marks,
         q.negative_penalty,
         ar.selected_option_id,
+        ar.descriptive_answer,
+        ar.submitted_file_url,
+        ar.submitted_file_name,
         ar.is_marked_for_review,
         ar.is_visited,
         ar.is_correct,
@@ -2725,17 +2838,26 @@ export const dbService = {
       }
     } catch {}
 
+    let proctoringLog: any[] = [];
+    try {
+      if (attempt.proctoring_event_log) {
+        proctoringLog = JSON.parse(attempt.proctoring_event_log);
+      }
+    } catch {}
+
     return {
       attempt: {
         ...attempt,
-        is_published: Boolean(attempt.is_published)
+        is_published: Boolean(attempt.is_published),
+        fullscreen_exit_count: attempt.fullscreen_exit_count || 0,
+        proctoring_event_log: proctoringLog
       },
       student,
       batch,
       exam,
       questions: questions.map(q => ({
         ...q,
-        options: JSON.parse(q.options),
+        options: q.options ? JSON.parse(q.options) : [],
         is_marked_for_review: Boolean(q.is_marked_for_review),
         is_visited: Boolean(q.is_visited)
       })),
