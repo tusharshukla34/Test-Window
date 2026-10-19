@@ -143,14 +143,13 @@ export async function syncStudentCreated(student: UserProfile, batchNames: strin
     const webhookUrl = dbService.getGoogleSheetWebhookUrl();
     if (!webhookUrl) return;
 
-    const headers = ['User ID', 'Roll / Student ID', 'Full Name', 'Email', 'Phone', 'Batches', 'Created At', 'Status'];
+    const headers = ['Roll / Student ID', 'Full Name', 'Email', 'Batches', 'Phone', 'Created At', 'Status'];
     const row = [
-      student.id,
       student.student_id || 'N/A',
       student.name,
       student.email,
-      student.phone || 'N/A',
       batchNames.join(', ') || 'None',
+      student.phone || 'N/A',
       student.created_at || new Date().toISOString(),
       student.status
     ];
