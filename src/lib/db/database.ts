@@ -70,8 +70,123 @@ let lastCheckedAt = 0;
 let localVersionTag: string | null = null;
 let syncLock: Promise<void> | null = null;
 
+export function ensureAllMigrations(targetDb: InstanceType<typeof Database> = db): boolean {
+  let changed = false;
+  try {
+    const getColumns = (tableName: string): Set<string> => {
+      try {
+        const rows = targetDb.prepare(`PRAGMA table_info(${tableName})`).all() as { name: string }[];
+        return new Set(rows.map(r => r.name));
+      } catch {
+        return new Set();
+      }
+    };
+
+    // question_bank migrations
+    const qbCols = getColumns('question_bank');
+    if (qbCols.size > 0) {
+      if (!qbCols.has('question_type')) {
+        targetDb.exec(`ALTER TABLE question_bank ADD COLUMN question_type TEXT NOT NULL DEFAULT 'mcq'`);
+        changed = true;
+      }
+      if (!qbCols.has('coding_language')) {
+        targetDb.exec(`ALTER TABLE question_bank ADD COLUMN coding_language TEXT DEFAULT 'python'`);
+        changed = true;
+      }
+      if (!qbCols.has('code_template')) {
+        targetDb.exec(`ALTER TABLE question_bank ADD COLUMN code_template TEXT`);
+        changed = true;
+      }
+      if (!qbCols.has('allowed_file_types')) {
+        targetDb.exec(`ALTER TABLE question_bank ADD COLUMN allowed_file_types TEXT DEFAULT 'pdf,png,jpg,ipynb,zip,txt,py,java,cpp'`);
+        changed = true;
+      }
+      if (!qbCols.has('max_file_size_mb')) {
+        targetDb.exec(`ALTER TABLE question_bank ADD COLUMN max_file_size_mb INTEGER DEFAULT 10`);
+        changed = true;
+      }
+    }
+
+    // exam_attempts migrations
+    const eaCols = getColumns('exam_attempts');
+    if (eaCols.size > 0) {
+      if (!eaCols.has('evaluation_status')) {
+        targetDb.exec(`ALTER TABLE exam_attempts ADD COLUMN evaluation_status TEXT NOT NULL DEFAULT 'pending_evaluation'`);
+        changed = true;
+      }
+      if (!eaCols.has('is_published')) {
+        targetDb.exec(`ALTER TABLE exam_attempts ADD COLUMN is_published INTEGER NOT NULL DEFAULT 0`);
+        changed = true;
+      }
+      if (!eaCols.has('published_at')) {
+        targetDb.exec(`ALTER TABLE exam_attempts ADD COLUMN published_at TEXT`);
+        changed = true;
+      }
+      if (!eaCols.has('published_by')) {
+        targetDb.exec(`ALTER TABLE exam_attempts ADD COLUMN published_by TEXT`);
+        changed = true;
+      }
+      if (!eaCols.has('evaluated_at')) {
+        targetDb.exec(`ALTER TABLE exam_attempts ADD COLUMN evaluated_at TEXT`);
+        changed = true;
+      }
+      if (!eaCols.has('evaluated_by')) {
+        targetDb.exec(`ALTER TABLE exam_attempts ADD COLUMN evaluated_by TEXT`);
+        changed = true;
+      }
+      if (!eaCols.has('trainer_feedback')) {
+        targetDb.exec(`ALTER TABLE exam_attempts ADD COLUMN trainer_feedback TEXT`);
+        changed = true;
+      }
+      if (!eaCols.has('evaluation_history')) {
+        targetDb.exec(`ALTER TABLE exam_attempts ADD COLUMN evaluation_history TEXT DEFAULT '[]'`);
+        changed = true;
+      }
+      if (!eaCols.has('fullscreen_exit_count')) {
+        targetDb.exec(`ALTER TABLE exam_attempts ADD COLUMN fullscreen_exit_count INTEGER NOT NULL DEFAULT 0`);
+        changed = true;
+      }
+      if (!eaCols.has('proctoring_event_log')) {
+        targetDb.exec(`ALTER TABLE exam_attempts ADD COLUMN proctoring_event_log TEXT DEFAULT '[]'`);
+        changed = true;
+      }
+    }
+
+    // attempt_responses migrations
+    const arCols = getColumns('attempt_responses');
+    if (arCols.size > 0) {
+      if (!arCols.has('manual_marks')) {
+        targetDb.exec(`ALTER TABLE attempt_responses ADD COLUMN manual_marks REAL`);
+        changed = true;
+      }
+      if (!arCols.has('teacher_remarks')) {
+        targetDb.exec(`ALTER TABLE attempt_responses ADD COLUMN teacher_remarks TEXT`);
+        changed = true;
+      }
+      if (!arCols.has('descriptive_answer')) {
+        targetDb.exec(`ALTER TABLE attempt_responses ADD COLUMN descriptive_answer TEXT`);
+        changed = true;
+      }
+      if (!arCols.has('submitted_file_url')) {
+        targetDb.exec(`ALTER TABLE attempt_responses ADD COLUMN submitted_file_url TEXT`);
+        changed = true;
+      }
+      if (!arCols.has('submitted_file_name')) {
+        targetDb.exec(`ALTER TABLE attempt_responses ADD COLUMN submitted_file_name TEXT`);
+        changed = true;
+      }
+    }
+  } catch (err) {
+    console.warn('[ensureAllMigrations warning]:', err);
+  }
+  return changed;
+}
+
 export async function ensureCloudSyncReady(force = false): Promise<void> {
-  if (!isServerless && !process.env.FORCE_CLOUD_SYNC) return;
+  if (!isServerless && !process.env.FORCE_CLOUD_SYNC) {
+    ensureAllMigrations(db);
+    return;
+  }
 
   if (syncLock) {
     await syncLock;
@@ -80,6 +195,7 @@ export async function ensureCloudSyncReady(force = false): Promise<void> {
 
   const now = Date.now();
   if (!force && localVersionTag && now - lastCheckedAt < 2500) {
+    ensureAllMigrations(db);
     return;
   }
   lastCheckedAt = now;
@@ -88,7 +204,10 @@ export async function ensureCloudSyncReady(force = false): Promise<void> {
     try {
       const { getCloudDatabaseMetadata, pullDatabaseFromCloud } = await import('./cloudSync');
       const meta = await getCloudDatabaseMetadata();
-      if (!meta) return;
+      if (!meta) {
+        ensureAllMigrations(db);
+        return;
+      }
 
       if (!localVersionTag || meta.versionTag !== localVersionTag) {
         const res = await pullDatabaseFromCloud(dbPath);
@@ -100,10 +219,26 @@ export async function ensureCloudSyncReady(force = false): Promise<void> {
           db = new Database(dbPath);
           db.pragma('journal_mode = DELETE');
           db.pragma('foreign_keys = ON');
+          initSchema();
+          const changed = ensureAllMigrations(db);
+          if (changed) {
+            try {
+              const { pushDatabaseToCloud } = await import('./cloudSync');
+              const pushRes = await pushDatabaseToCloud(dbPath);
+              if (pushRes.success) {
+                localVersionTag = pushRes.versionTag;
+              }
+            } catch (syncErr) {
+              console.warn('[CLOUD SYNC]: Auto-migration sync back warning:', syncErr);
+            }
+          }
         }
+      } else {
+        ensureAllMigrations(db);
       }
     } catch (err) {
       console.warn('[CLOUD SYNC]: ensureCloudSyncReady warning:', err);
+      ensureAllMigrations(db);
     } finally {
       syncLock = null;
     }
@@ -271,6 +406,11 @@ function initSchema() {
       subject TEXT NOT NULL,
       topic TEXT NOT NULL,
       difficulty TEXT NOT NULL DEFAULT 'medium' CHECK (difficulty IN ('easy', 'medium', 'hard')),
+      question_type TEXT NOT NULL DEFAULT 'mcq',
+      coding_language TEXT DEFAULT 'python',
+      code_template TEXT,
+      allowed_file_types TEXT DEFAULT 'pdf,png,jpg,ipynb,zip,txt,py,java,cpp',
+      max_file_size_mb INTEGER DEFAULT 10,
       question_text TEXT NOT NULL,
       question_image_url TEXT,
       options TEXT NOT NULL, -- JSON string array
@@ -311,6 +451,16 @@ function initSchema() {
       accuracy REAL,
       rank INTEGER,
       feedback TEXT,
+      evaluation_status TEXT NOT NULL DEFAULT 'pending_evaluation',
+      is_published INTEGER NOT NULL DEFAULT 0,
+      published_at TEXT,
+      published_by TEXT,
+      evaluated_at TEXT,
+      evaluated_by TEXT,
+      trainer_feedback TEXT,
+      evaluation_history TEXT DEFAULT '[]',
+      fullscreen_exit_count INTEGER NOT NULL DEFAULT 0,
+      proctoring_event_log TEXT DEFAULT '[]',
       UNIQUE (exam_id, student_id)
     );
 
@@ -324,6 +474,11 @@ function initSchema() {
       time_spent_seconds INTEGER NOT NULL DEFAULT 0,
       is_correct INTEGER,
       score_awarded REAL,
+      manual_marks REAL,
+      teacher_remarks TEXT,
+      descriptive_answer TEXT,
+      submitted_file_url TEXT,
+      submitted_file_name TEXT,
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE (attempt_id, question_id)
     );
@@ -370,32 +525,8 @@ function initSchema() {
     );
   `);
 
-  // Dynamic schema migrations for manual evaluation & publishing
-  try { db.exec(`ALTER TABLE exam_attempts ADD COLUMN evaluation_status TEXT NOT NULL DEFAULT 'pending_evaluation'`); } catch {}
-  try { db.exec(`ALTER TABLE exam_attempts ADD COLUMN is_published INTEGER NOT NULL DEFAULT 0`); } catch {}
-  try { db.exec(`ALTER TABLE exam_attempts ADD COLUMN published_at TEXT`); } catch {}
-  try { db.exec(`ALTER TABLE exam_attempts ADD COLUMN published_by TEXT`); } catch {}
-  try { db.exec(`ALTER TABLE exam_attempts ADD COLUMN evaluated_at TEXT`); } catch {}
-  try { db.exec(`ALTER TABLE exam_attempts ADD COLUMN evaluated_by TEXT`); } catch {}
-  try { db.exec(`ALTER TABLE exam_attempts ADD COLUMN trainer_feedback TEXT`); } catch {}
-  try { db.exec(`ALTER TABLE exam_attempts ADD COLUMN evaluation_history TEXT DEFAULT '[]'`); } catch {}
-
-  try { db.exec(`ALTER TABLE attempt_responses ADD COLUMN manual_marks REAL`); } catch {}
-  try { db.exec(`ALTER TABLE attempt_responses ADD COLUMN teacher_remarks TEXT`); } catch {}
-  try { db.exec(`ALTER TABLE attempt_responses ADD COLUMN descriptive_answer TEXT`); } catch {}
-  try { db.exec(`ALTER TABLE attempt_responses ADD COLUMN submitted_file_url TEXT`); } catch {}
-  try { db.exec(`ALTER TABLE attempt_responses ADD COLUMN submitted_file_name TEXT`); } catch {}
-
-  // Mixed question types & coding practicals
-  try { db.exec(`ALTER TABLE question_bank ADD COLUMN question_type TEXT NOT NULL DEFAULT 'mcq'`); } catch {}
-  try { db.exec(`ALTER TABLE question_bank ADD COLUMN coding_language TEXT DEFAULT 'python'`); } catch {}
-  try { db.exec(`ALTER TABLE question_bank ADD COLUMN code_template TEXT`); } catch {}
-  try { db.exec(`ALTER TABLE question_bank ADD COLUMN allowed_file_types TEXT DEFAULT 'pdf,png,jpg,ipynb,zip,txt,py,java,cpp'`); } catch {}
-  try { db.exec(`ALTER TABLE question_bank ADD COLUMN max_file_size_mb INTEGER DEFAULT 10`); } catch {}
-
-  // Proctoring and fullscreen lock tracking
-  try { db.exec(`ALTER TABLE exam_attempts ADD COLUMN fullscreen_exit_count INTEGER NOT NULL DEFAULT 0`); } catch {}
-  try { db.exec(`ALTER TABLE exam_attempts ADD COLUMN proctoring_event_log TEXT DEFAULT '[]'`); } catch {}
+  // Ensure all dynamic columns and migrations are applied
+  ensureAllMigrations(db);
 
   // Ensure assignments table includes ipynb and coding formats
   try {
@@ -1824,14 +1955,41 @@ export const dbService = {
     }
 
     // Fetch sanitized client questions (CRITICAL: without correct_option_id or explanation!)
-    const rawQuestions = db.prepare(`
-      SELECT q.id, eq.question_order, q.subject, q.topic, q.question_text, q.question_image_url, q.options, q.marks, q.negative_penalty,
-             COALESCE(q.question_type, 'mcq') as question_type, q.coding_language, q.code_template, q.allowed_file_types, q.max_file_size_mb
-      FROM question_bank q
-      JOIN exam_questions eq ON q.id = eq.question_id
-      WHERE eq.exam_id = ?
-      ORDER BY eq.question_order ASC
-    `).all(examId) as (Omit<ExamQuestionClient, 'options'> & { options: string })[];
+    let rawQuestions: (Omit<ExamQuestionClient, 'options'> & { options: string })[] = [];
+    try {
+      rawQuestions = db.prepare(`
+        SELECT q.id, eq.question_order, q.subject, q.topic, q.question_text, q.question_image_url, q.options, q.marks, q.negative_penalty,
+               COALESCE(q.question_type, 'mcq') as question_type, q.coding_language, q.code_template, q.allowed_file_types, q.max_file_size_mb
+        FROM question_bank q
+        JOIN exam_questions eq ON q.id = eq.question_id
+        WHERE eq.exam_id = ?
+        ORDER BY eq.question_order ASC
+      `).all(examId) as (Omit<ExamQuestionClient, 'options'> & { options: string })[];
+    } catch (queryErr: any) {
+      if (String(queryErr?.message).includes('no such column')) {
+        ensureAllMigrations(db);
+        try {
+          rawQuestions = db.prepare(`
+            SELECT q.id, eq.question_order, q.subject, q.topic, q.question_text, q.question_image_url, q.options, q.marks, q.negative_penalty,
+                   COALESCE(q.question_type, 'mcq') as question_type, q.coding_language, q.code_template, q.allowed_file_types, q.max_file_size_mb
+            FROM question_bank q
+            JOIN exam_questions eq ON q.id = eq.question_id
+            WHERE eq.exam_id = ?
+            ORDER BY eq.question_order ASC
+          `).all(examId) as any[];
+        } catch {
+          rawQuestions = db.prepare(`
+            SELECT q.id, eq.question_order, q.subject, q.topic, q.question_text, q.question_image_url, q.options, q.marks, q.negative_penalty
+            FROM question_bank q
+            JOIN exam_questions eq ON q.id = eq.question_id
+            WHERE eq.exam_id = ?
+            ORDER BY eq.question_order ASC
+          `).all(examId) as any[];
+        }
+      } else {
+        throw queryErr;
+      }
+    }
 
     const clientQuestions: ExamQuestionClient[] = rawQuestions.map(q => ({
       id: q.id,
@@ -2268,19 +2426,55 @@ export const dbService = {
     }
 
     // When published: return full score card and reviewed answers
-    const reviewQuestions = db.prepare(`
-      SELECT q.id, eq.question_order, q.subject, q.topic,
-             COALESCE(q.question_type, 'mcq') as question_type, q.coding_language, q.code_template, q.allowed_file_types, q.max_file_size_mb,
-             q.question_text, q.question_image_url,
-             q.options, q.marks, q.negative_penalty, q.correct_option_id, q.explanation,
-             ar.selected_option_id, ar.descriptive_answer, ar.submitted_file_url, ar.submitted_file_name,
-             ar.is_correct, ar.manual_marks, ar.teacher_remarks
-      FROM question_bank q
-      JOIN exam_questions eq ON q.id = eq.question_id
-      LEFT JOIN attempt_responses ar ON q.id = ar.question_id AND ar.attempt_id = ?
-      WHERE eq.exam_id = ?
-      ORDER BY eq.question_order ASC
-    `).all(attempt.id, examId) as any[];
+    let reviewQuestions: any[] = [];
+    try {
+      reviewQuestions = db.prepare(`
+        SELECT q.id, eq.question_order, q.subject, q.topic,
+               COALESCE(q.question_type, 'mcq') as question_type, q.coding_language, q.code_template, q.allowed_file_types, q.max_file_size_mb,
+               q.question_text, q.question_image_url,
+               q.options, q.marks, q.negative_penalty, q.correct_option_id, q.explanation,
+               ar.selected_option_id, ar.descriptive_answer, ar.submitted_file_url, ar.submitted_file_name,
+               ar.is_correct, ar.manual_marks, ar.teacher_remarks
+        FROM question_bank q
+        JOIN exam_questions eq ON q.id = eq.question_id
+        LEFT JOIN attempt_responses ar ON q.id = ar.question_id AND ar.attempt_id = ?
+        WHERE eq.exam_id = ?
+        ORDER BY eq.question_order ASC
+      `).all(attempt.id, examId) as any[];
+    } catch (queryErr: any) {
+      if (String(queryErr?.message).includes('no such column')) {
+        ensureAllMigrations(db);
+        try {
+          reviewQuestions = db.prepare(`
+            SELECT q.id, eq.question_order, q.subject, q.topic,
+                   COALESCE(q.question_type, 'mcq') as question_type, q.coding_language, q.code_template, q.allowed_file_types, q.max_file_size_mb,
+                   q.question_text, q.question_image_url,
+                   q.options, q.marks, q.negative_penalty, q.correct_option_id, q.explanation,
+                   ar.selected_option_id, ar.descriptive_answer, ar.submitted_file_url, ar.submitted_file_name,
+                   ar.is_correct, ar.manual_marks, ar.teacher_remarks
+            FROM question_bank q
+            JOIN exam_questions eq ON q.id = eq.question_id
+            LEFT JOIN attempt_responses ar ON q.id = ar.question_id AND ar.attempt_id = ?
+            WHERE eq.exam_id = ?
+            ORDER BY eq.question_order ASC
+          `).all(attempt.id, examId) as any[];
+        } catch {
+          reviewQuestions = db.prepare(`
+            SELECT q.id, eq.question_order, q.subject, q.topic,
+                   q.question_text, q.question_image_url,
+                   q.options, q.marks, q.negative_penalty, q.correct_option_id, q.explanation,
+                   ar.selected_option_id, ar.is_correct, ar.score_awarded as manual_marks
+            FROM question_bank q
+            JOIN exam_questions eq ON q.id = eq.question_id
+            LEFT JOIN attempt_responses ar ON q.id = ar.question_id AND ar.attempt_id = ?
+            WHERE eq.exam_id = ?
+            ORDER BY eq.question_order ASC
+          `).all(attempt.id, examId) as any[];
+        }
+      } else {
+        throw queryErr;
+      }
+    }
 
     return {
       exam,
@@ -2810,40 +3004,112 @@ export const dbService = {
     const batch = attempt.batch_id ? this.getBatchById(attempt.batch_id) : null;
 
     // Fetch all questions for this exam and student's responses
-    const questions = db.prepare(`
-      SELECT 
-        q.id,
-        eq.question_order,
-        q.subject,
-        q.topic,
-        COALESCE(q.question_type, 'mcq') as question_type,
-        q.coding_language,
-        q.code_template,
-        q.allowed_file_types,
-        q.max_file_size_mb,
-        q.question_text,
-        q.question_image_url,
-        q.options,
-        q.correct_option_id,
-        q.explanation,
-        q.marks,
-        q.negative_penalty,
-        ar.selected_option_id,
-        ar.descriptive_answer,
-        ar.submitted_file_url,
-        ar.submitted_file_name,
-        ar.is_marked_for_review,
-        ar.is_visited,
-        ar.is_correct,
-        ar.score_awarded as suggested_score,
-        COALESCE(ar.manual_marks, ar.score_awarded, 0) as manual_marks,
-        ar.teacher_remarks
-      FROM question_bank q
-      JOIN exam_questions eq ON q.id = eq.question_id
-      LEFT JOIN attempt_responses ar ON q.id = ar.question_id AND ar.attempt_id = ?
-      WHERE eq.exam_id = ?
-      ORDER BY eq.question_order ASC
-    `).all(attemptId, exam.id) as any[];
+    let questions: any[] = [];
+    try {
+      questions = db.prepare(`
+        SELECT 
+          q.id,
+          eq.question_order,
+          q.subject,
+          q.topic,
+          COALESCE(q.question_type, 'mcq') as question_type,
+          q.coding_language,
+          q.code_template,
+          q.allowed_file_types,
+          q.max_file_size_mb,
+          q.question_text,
+          q.question_image_url,
+          q.options,
+          q.correct_option_id,
+          q.explanation,
+          q.marks,
+          q.negative_penalty,
+          ar.selected_option_id,
+          ar.descriptive_answer,
+          ar.submitted_file_url,
+          ar.submitted_file_name,
+          ar.is_marked_for_review,
+          ar.is_visited,
+          ar.is_correct,
+          ar.score_awarded as suggested_score,
+          COALESCE(ar.manual_marks, ar.score_awarded, 0) as manual_marks,
+          ar.teacher_remarks
+        FROM question_bank q
+        JOIN exam_questions eq ON q.id = eq.question_id
+        LEFT JOIN attempt_responses ar ON q.id = ar.question_id AND ar.attempt_id = ?
+        WHERE eq.exam_id = ?
+        ORDER BY eq.question_order ASC
+      `).all(attemptId, exam.id) as any[];
+    } catch (queryErr: any) {
+      if (String(queryErr?.message).includes('no such column')) {
+        ensureAllMigrations(db);
+        try {
+          questions = db.prepare(`
+            SELECT 
+              q.id,
+              eq.question_order,
+              q.subject,
+              q.topic,
+              COALESCE(q.question_type, 'mcq') as question_type,
+              q.coding_language,
+              q.code_template,
+              q.allowed_file_types,
+              q.max_file_size_mb,
+              q.question_text,
+              q.question_image_url,
+              q.options,
+              q.correct_option_id,
+              q.explanation,
+              q.marks,
+              q.negative_penalty,
+              ar.selected_option_id,
+              ar.descriptive_answer,
+              ar.submitted_file_url,
+              ar.submitted_file_name,
+              ar.is_marked_for_review,
+              ar.is_visited,
+              ar.is_correct,
+              ar.score_awarded as suggested_score,
+              COALESCE(ar.manual_marks, ar.score_awarded, 0) as manual_marks,
+              ar.teacher_remarks
+            FROM question_bank q
+            JOIN exam_questions eq ON q.id = eq.question_id
+            LEFT JOIN attempt_responses ar ON q.id = ar.question_id AND ar.attempt_id = ?
+            WHERE eq.exam_id = ?
+            ORDER BY eq.question_order ASC
+          `).all(attemptId, exam.id) as any[];
+        } catch {
+          questions = db.prepare(`
+            SELECT 
+              q.id,
+              eq.question_order,
+              q.subject,
+              q.topic,
+              q.question_text,
+              q.question_image_url,
+              q.options,
+              q.correct_option_id,
+              q.explanation,
+              q.marks,
+              q.negative_penalty,
+              ar.selected_option_id,
+              ar.is_marked_for_review,
+              ar.is_visited,
+              ar.is_correct,
+              ar.score_awarded as suggested_score,
+              COALESCE(ar.manual_marks, ar.score_awarded, 0) as manual_marks,
+              ar.teacher_remarks
+            FROM question_bank q
+            JOIN exam_questions eq ON q.id = eq.question_id
+            LEFT JOIN attempt_responses ar ON q.id = ar.question_id AND ar.attempt_id = ?
+            WHERE eq.exam_id = ?
+            ORDER BY eq.question_order ASC
+          `).all(attemptId, exam.id) as any[];
+        }
+      } else {
+        throw queryErr;
+      }
+    }
 
     let history: any[] = [];
     try {

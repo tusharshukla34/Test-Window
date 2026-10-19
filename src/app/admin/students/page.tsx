@@ -416,7 +416,7 @@ export default function StudentsPage() {
               <input
                 type="email"
                 required
-                placeholder="vikram@example.com"
+                placeholder="student@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="clay-input w-full p-2.5 text-xs text-slate-800"
