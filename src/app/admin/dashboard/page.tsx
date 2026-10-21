@@ -25,6 +25,8 @@ interface AdminStats {
   completed_assignments: number;
   overdue_assignments: number;
   awaiting_evaluations: number;
+  awaiting_assignment_evaluations?: number;
+  awaiting_exam_evaluations?: number;
   upcoming_exams: number;
   exams_in_progress: number;
   recent_submissions: {
@@ -43,6 +45,8 @@ interface AdminStats {
     total_score: number;
     percentage: number;
     submitted_at: string;
+    is_published?: number | boolean;
+    evaluation_status?: string;
   }[];
   batch_completion_rates: {
     batch_name: string;
@@ -201,7 +205,13 @@ export default function AdminDashboardPage() {
         <ClayCard
           interactive
           variant="amber"
-          onClick={() => router.push('/admin/submissions')}
+          onClick={() => {
+            if ((stats?.awaiting_exam_evaluations || 0) > 0) {
+              router.push('/admin/exam-evaluations');
+            } else {
+              router.push('/admin/submissions');
+            }
+          }}
           className="cursor-pointer"
         >
           <div className="flex items-center justify-between mb-3">
@@ -212,7 +222,11 @@ export default function AdminDashboardPage() {
           </div>
           <p className="text-3xl sm:text-4xl font-extrabold text-amber-950">{stats?.awaiting_evaluations || 0}</p>
           <p className="text-xs text-amber-700 mt-1 font-medium flex items-center gap-1">
-            Pending grading <ArrowUpRight size={13} />
+            {stats?.awaiting_exam_evaluations ? `${stats.awaiting_exam_evaluations} Exams` : ''}
+            {stats?.awaiting_exam_evaluations && stats?.awaiting_assignment_evaluations ? ' • ' : ''}
+            {stats?.awaiting_assignment_evaluations ? `${stats.awaiting_assignment_evaluations} Homework` : ''}
+            {!stats?.awaiting_exam_evaluations && !stats?.awaiting_assignment_evaluations ? 'Pending review' : ''}
+            <ArrowUpRight size={13} />
           </p>
         </ClayCard>
 
@@ -345,14 +359,26 @@ export default function AdminDashboardPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {recentResults.map(res => (
-              <div key={res.id} className="p-4 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+              <div
+                key={res.id}
+                onClick={() => router.push(res.is_published ? '/admin/exams' : '/admin/exam-evaluations')}
+                className="p-4 rounded-xl bg-slate-50 hover:bg-white border border-slate-100 hover:border-amber-300 transition cursor-pointer flex items-center justify-between"
+              >
                 <div>
                   <p className="text-xs font-bold text-slate-900">{res.student_name}</p>
                   <p className="text-[11px] text-slate-500 truncate max-w-[180px]">{res.exam_title}</p>
                 </div>
                 <div className="text-right">
-                  <span className="text-sm font-extrabold text-emerald-700 font-mono">{res.total_score} marks</span>
-                  <p className="text-[10px] text-slate-400">{res.percentage}% accuracy</p>
+                  {res.is_published ? (
+                    <>
+                      <span className="text-sm font-extrabold text-emerald-700 font-mono">{res.total_score} marks</span>
+                      <p className="text-[10px] text-slate-400">{res.percentage}% accuracy</p>
+                    </>
+                  ) : (
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                      Pending Evaluation
+                    </span>
+                  )}
                 </div>
               </div>
             ))}

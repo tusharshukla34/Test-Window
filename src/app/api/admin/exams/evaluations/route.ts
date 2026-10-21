@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbService } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady } from '@/lib/db/database';
 import { getSessionUser } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   try {
@@ -8,6 +11,8 @@ export async function GET(req: NextRequest) {
     if (!user || user.role !== 'admin') {
       return NextResponse.json({ error: 'Unauthorized. Admin access required.' }, { status: 403 });
     }
+
+    await ensureCloudSyncReady();
 
     const { searchParams } = new URL(req.url);
     const batch_id = searchParams.get('batch_id') || 'all';
@@ -22,7 +27,11 @@ export async function GET(req: NextRequest) {
       search
     });
 
-    return NextResponse.json(monitoringData);
+    return NextResponse.json(monitoringData, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      }
+    });
   } catch (err: unknown) {
     console.error('Error in exam evaluations monitoring API:', err);
     return NextResponse.json(
@@ -31,3 +40,4 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+

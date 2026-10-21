@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 import { getSessionUser } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbService } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/database';
 import { getSessionUser } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function POST(
   req: NextRequest,
@@ -11,6 +14,8 @@ export async function POST(
     if (!user || user.role !== 'admin') {
       return NextResponse.json({ error: 'Unauthorized. Admin access required.' }, { status: 403 });
     }
+
+    await ensureCloudSyncReady();
 
     const { id: attemptId } = await context.params;
     const body = await req.json();
@@ -28,6 +33,8 @@ export async function POST(
       teacher_remarks: body.teacher_remarks,
       trainer_feedback: body.trainer_feedback
     });
+
+    await syncDatabaseToCloud();
 
     // Real-Time Google Sheet Sync: Updates student result in dedicated exam sheet tab automatically
     try {

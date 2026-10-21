@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dbService } from '@/lib/db/database';
+import { dbService, ensureCloudSyncReady } from '@/lib/db/database';
 import { getSessionUser } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   try {
@@ -9,8 +12,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized. Student access required.' }, { status: 403 });
     }
 
+    await ensureCloudSyncReady();
+
     const results = dbService.getStudentExamSubmissions(user.id);
-    return NextResponse.json(results);
+    return NextResponse.json(results, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      }
+    });
   } catch (err: unknown) {
     console.error('Error fetching student exam submissions:', err);
     return NextResponse.json(
@@ -19,3 +28,4 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+

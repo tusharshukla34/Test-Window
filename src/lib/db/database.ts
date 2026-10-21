@@ -2576,6 +2576,8 @@ export const dbService = {
     completed_assignments: number;
     overdue_assignments: number;
     awaiting_evaluations: number;
+    awaiting_assignment_evaluations?: number;
+    awaiting_exam_evaluations?: number;
     upcoming_exams: number;
     exams_in_progress: number;
     recent_submissions: (AssignmentSubmission & { student_name: string; assignment_title: string; batch_name: string })[];
@@ -2585,7 +2587,13 @@ export const dbService = {
     const totalStudents = (db.prepare(`SELECT count(*) as count FROM profiles WHERE role = 'student' AND status = 'active'`).get() as { count: number } | undefined)?.count || 0;
     const activeBatches = (db.prepare(`SELECT count(*) as count FROM batches WHERE status = 'active'`).get() as { count: number } | undefined)?.count || 0;
 
-    const awaitingEvaluations = (db.prepare(`SELECT count(*) as count FROM assignment_submissions WHERE status = 'submitted'`).get() as { count: number } | undefined)?.count || 0;
+    const awaitingAssignmentEvals = (db.prepare(`SELECT count(*) as count FROM assignment_submissions WHERE status = 'submitted'`).get() as { count: number } | undefined)?.count || 0;
+    const awaitingExamEvals = (db.prepare(`
+      SELECT count(*) as count FROM exam_attempts 
+      WHERE status = 'completed' AND (evaluation_status = 'pending_evaluation' OR is_published = 0)
+    `).get() as { count: number } | undefined)?.count || 0;
+    const awaitingEvaluations = awaitingAssignmentEvals + awaitingExamEvals;
+
     const completedAssignments = (db.prepare(`SELECT count(*) as count FROM assignment_submissions WHERE status = 'evaluated'`).get() as { count: number } | undefined)?.count || 0;
 
     const overdueAssignments = (db.prepare(`
@@ -2604,7 +2612,7 @@ export const dbService = {
     const recentSubmissions = ((db.prepare(`
       SELECT sub.*, p.name as student_name, a.title as assignment_title, coalesce(b.name, 'Default') as batch_name
       FROM assignment_submissions sub
-      JOIN profiles p ON sub.student_id = p.id
+      JOIN profiles p ON (sub.student_id = p.id OR sub.student_id = p.student_id)
       JOIN assignments a ON sub.assignment_id = a.id
       LEFT JOIN batches b ON sub.batch_id = b.id
       ORDER BY sub.submitted_at DESC LIMIT 5
@@ -2613,7 +2621,7 @@ export const dbService = {
     const recentResults = ((db.prepare(`
       SELECT att.*, p.name as student_name, e.title as exam_title
       FROM exam_attempts att
-      JOIN profiles p ON att.student_id = p.id
+      JOIN profiles p ON (att.student_id = p.id OR att.student_id = p.student_id)
       JOIN exams e ON att.exam_id = e.id
       WHERE att.status = 'completed'
       ORDER BY att.submitted_at DESC LIMIT 5
@@ -2648,6 +2656,8 @@ export const dbService = {
       completed_assignments: completedAssignments,
       overdue_assignments: overdueAssignments,
       awaiting_evaluations: awaitingEvaluations,
+      awaiting_assignment_evaluations: awaitingAssignmentEvals,
+      awaiting_exam_evaluations: awaitingExamEvals,
       upcoming_exams: upcomingExams,
       exams_in_progress: examsInProgress,
       recent_submissions: recentSubmissions,
@@ -2708,25 +2718,45 @@ export const dbService = {
     let completedEx = 0;
 
     for (const e of assignedExams) {
-      if (e.attempt?.status === 'completed') completedEx++;
-      else upcomingEx++;
+      if (e.attempt?.status === 'completed') {
+        completedEx++;
+        if (!e.attempt.is_published || e.attempt.evaluation_status === 'pending_evaluation') {
+          awaitingEval++;
+        }
+      } else {
+        upcomingEx++;
+      }
     }
 
     const recentSubs = db.prepare(`
       SELECT sub.*, a.title as assignment_title
       FROM assignment_submissions sub
       JOIN assignments a ON sub.assignment_id = a.id
-      WHERE sub.student_id = ?
+      WHERE (sub.student_id = ? OR sub.student_id = ?)
       ORDER BY sub.submitted_at DESC LIMIT 5
-    `).all(studentId) as (AssignmentSubmission & { assignment_title: string })[];
+    `).all(student.id, student.student_id) as (AssignmentSubmission & { assignment_title: string })[];
 
-    const recentExams = db.prepare(`
+    const rawRecentExams = db.prepare(`
       SELECT att.*, e.title as exam_title, e.max_marks
       FROM exam_attempts att
       JOIN exams e ON att.exam_id = e.id
-      WHERE att.student_id = ? AND att.status = 'completed' AND att.is_published = 1
+      WHERE (att.student_id = ? OR att.student_id = ?) AND att.status = 'completed'
       ORDER BY att.submitted_at DESC LIMIT 5
-    `).all(studentId) as (ExamAttempt & { exam_title: string; max_marks: number })[];
+    `).all(student.id, student.student_id) as (ExamAttempt & { exam_title: string; max_marks: number })[];
+
+    const recentExams = rawRecentExams.map(att => {
+      const isPub = Boolean(att.is_published);
+      return {
+        ...att,
+        is_published: isPub,
+        total_score: isPub ? att.total_score : null,
+        percentage: isPub ? att.percentage : null,
+        accuracy: isPub ? att.accuracy : null,
+        rank: isPub ? att.rank : null,
+        feedback: isPub ? att.feedback : null,
+        trainer_feedback: isPub ? att.trainer_feedback : null
+      };
+    });
 
     // Calculate individual breakdown for each batch this student is assigned to
     const getBatchAssignmentsStmt = db.prepare(`
@@ -2910,8 +2940,8 @@ export const dbService = {
         att.evaluation_history
       FROM exam_attempts att
       JOIN exams e ON att.exam_id = e.id
-      JOIN profiles p ON att.student_id = p.id
-      LEFT JOIN batches b ON att.batch_id = b.id
+      JOIN profiles p ON (att.student_id = p.id OR att.student_id = p.student_id)
+      LEFT JOIN batches b ON (att.batch_id = b.id OR b.id IN (SELECT batch_id FROM batch_memberships WHERE user_id = p.id OR user_id = p.student_id))
       WHERE att.status = 'completed'
     `;
     const params: any[] = [];
@@ -2997,11 +3027,11 @@ export const dbService = {
     const attempt = db.prepare('SELECT * FROM exam_attempts WHERE id = ?').get(attemptId) as any;
     if (!attempt) throw new Error('Attempt not found');
 
-    const student = this.getUserById(attempt.student_id);
+    const student = this.getUserById(attempt.student_id) || this.getUserByStudentId(attempt.student_id) || this.getUserByEmail(attempt.student_id);
     const exam = this.getExamById(attempt.exam_id);
     if (!student || !exam) throw new Error('Student or exam not found');
 
-    const batch = attempt.batch_id ? this.getBatchById(attempt.batch_id) : null;
+    const batch = attempt.batch_id ? this.getBatchById(attempt.batch_id) : (this.getStudentBatches(student.id)[0] || null);
 
     // Fetch all questions for this exam and student's responses
     let questions: any[] = [];
@@ -3393,15 +3423,15 @@ export const dbService = {
   },
 
   getStudentExamSubmissions(studentId: string) {
-    const student = this.getUserById(studentId);
+    const student = this.getUserById(studentId) || this.getUserByStudentId(studentId) || this.getUserByEmail(studentId);
     if (!student) return [];
 
-    const assignedExams = this.getExamsForStudent(studentId);
+    const assignedExams = this.getExamsForStudent(student.id);
 
     return assignedExams.map(ex => {
       const att = db.prepare(`
-        SELECT * FROM exam_attempts WHERE exam_id = ? AND student_id = ?
-      `).get(ex.id, studentId) as any;
+        SELECT * FROM exam_attempts WHERE exam_id = ? AND (student_id = ? OR student_id = ?)
+      `).get(ex.id, student.id, student.student_id) as any;
 
       if (!att) {
         return {

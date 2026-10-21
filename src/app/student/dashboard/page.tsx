@@ -49,12 +49,16 @@ interface StudentDashboardData {
   }[];
   recent_exam_results: {
     id: string;
+    exam_id?: string;
     exam_title: string;
-    total_score: number;
+    total_score: number | null;
     max_marks: number;
-    percentage: number;
-    accuracy: number;
-    rank: number;
+    percentage: number | null;
+    accuracy: number | null;
+    rank: number | null;
+    is_published?: number | boolean;
+    evaluation_status?: string;
+    submitted_at?: string;
   }[];
   batch_breakdowns?: StudentBatchBreakdown[];
 }
@@ -284,26 +288,48 @@ export default function StudentDashboardPage() {
             </div>
           ) : (
             <div className="space-y-2.5">
-              {data.recent_exam_results.map(res => (
-                <div
-                  key={res.id}
-                  onClick={() => router.push(`/student/exams/${res.id}/result`)}
-                  className="p-3 sm:p-3.5 rounded-2xl bg-slate-50/80 hover:bg-white border border-slate-100 hover:border-amber-300 hover:shadow-md hover:-translate-y-1 transition-all duration-200 cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2"
-                >
-                  <div className="min-w-0">
-                    <h4 className="text-xs font-bold text-slate-900 break-words">{res.exam_title}</h4>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      Accuracy: <strong className="text-teal-700">{res.accuracy}%</strong> • Batch Rank: <strong className="text-amber-600">#{res.rank || 1}</strong>
-                    </p>
+              {data.recent_exam_results.map(res => {
+                const isPublished = Boolean(res.is_published);
+                const targetExamId = res.exam_id || res.id;
+
+                return (
+                  <div
+                    key={res.id}
+                    onClick={() => router.push(`/student/exams/${targetExamId}/result`)}
+                    className="p-3 sm:p-3.5 rounded-2xl bg-slate-50/80 hover:bg-white border border-slate-100 hover:border-amber-300 hover:shadow-md hover:-translate-y-1 transition-all duration-200 cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                  >
+                    <div className="min-w-0">
+                      <h4 className="text-xs font-bold text-slate-900 break-words">{res.exam_title}</h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {isPublished ? (
+                          <>
+                            Accuracy: <strong className="text-teal-700">{res.accuracy}%</strong> • Batch Rank: <strong className="text-amber-600">#{res.rank || 1}</strong>
+                          </>
+                        ) : (
+                          <span className="text-amber-700 font-medium flex items-center gap-1.5">
+                            <Clock size={12} className="inline text-amber-600 shrink-0" />
+                            Submitted {res.submitted_at ? new Date(res.submitted_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'recently'} • Under Review
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="text-left sm:text-right shrink-0">
+                      {isPublished ? (
+                        <>
+                          <span className="text-base font-black text-emerald-700 font-mono">
+                            {res.total_score} / {res.max_marks}
+                          </span>
+                          <p className="text-[10px] text-slate-400 font-bold">{res.percentage}%</p>
+                        </>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs inline-block">
+                          Under Review
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-left sm:text-right shrink-0">
-                    <span className="text-base font-black text-emerald-700 font-mono">
-                      {res.total_score} / {res.max_marks}
-                    </span>
-                    <p className="text-[10px] text-slate-400 font-bold">{res.percentage}%</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </ClayCard3D>
