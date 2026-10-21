@@ -1372,6 +1372,63 @@ export const dbService = {
     return this.getQuestionById(id)!;
   },
 
+  updateQuestion(id: string, data: {
+    subject?: string;
+    topic?: string;
+    difficulty?: 'easy' | 'medium' | 'hard';
+    question_type?: 'mcq' | 'coding' | 'written' | 'file_upload';
+    coding_language?: string;
+    code_template?: string;
+    allowed_file_types?: string;
+    max_file_size_mb?: number;
+    question_text?: string;
+    options?: { id: string; text: string }[];
+    correct_option_id?: string;
+    explanation?: string;
+    marks?: number;
+    negative_penalty?: number;
+  }): QuestionBankItem | null {
+    const existing = this.getQuestionById(id);
+    if (!existing) return null;
+
+    db.prepare(`
+      UPDATE question_bank
+      SET subject = coalesce(?, subject),
+          topic = coalesce(?, topic),
+          difficulty = coalesce(?, difficulty),
+          question_type = coalesce(?, question_type),
+          coding_language = coalesce(?, coding_language),
+          code_template = coalesce(?, code_template),
+          allowed_file_types = coalesce(?, allowed_file_types),
+          max_file_size_mb = coalesce(?, max_file_size_mb),
+          question_text = coalesce(?, question_text),
+          options = coalesce(?, options),
+          correct_option_id = coalesce(?, correct_option_id),
+          explanation = coalesce(?, explanation),
+          marks = coalesce(?, marks),
+          negative_penalty = coalesce(?, negative_penalty)
+      WHERE id = ?
+    `).run(
+      data.subject !== undefined ? data.subject : null,
+      data.topic !== undefined ? data.topic : null,
+      data.difficulty !== undefined ? data.difficulty : null,
+      data.question_type !== undefined ? data.question_type : null,
+      data.coding_language !== undefined ? data.coding_language : null,
+      data.code_template !== undefined ? data.code_template : null,
+      data.allowed_file_types !== undefined ? data.allowed_file_types : null,
+      data.max_file_size_mb !== undefined ? data.max_file_size_mb : null,
+      data.question_text !== undefined ? data.question_text : null,
+      data.options !== undefined ? JSON.stringify(data.options) : null,
+      data.correct_option_id !== undefined ? data.correct_option_id : null,
+      data.explanation !== undefined ? data.explanation : null,
+      data.marks !== undefined ? data.marks : null,
+      data.negative_penalty !== undefined ? data.negative_penalty : null,
+      id
+    );
+
+    return this.getQuestionById(id);
+  },
+
   deleteQuestion(id: string): boolean {
     const res = db.prepare('DELETE FROM question_bank WHERE id = ?').run(id);
     return res.changes > 0;

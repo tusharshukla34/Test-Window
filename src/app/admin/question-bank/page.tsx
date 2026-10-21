@@ -6,6 +6,7 @@ import {
   Plus,
   Search,
   Trash2,
+  Pencil,
   CheckCircle2,
   Tag,
   Sparkles,
@@ -155,6 +156,101 @@ export default function QuestionBankPage() {
       fetchQuestions();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error creating question');
+    }
+  };
+
+  // Edit Question Modal State
+  const [editingQuestion, setEditingQuestion] = useState<QuestionBankItem | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editSubject, setEditSubject] = useState('');
+  const [editTopic, setEditTopic] = useState('');
+  const [editDifficulty, setEditDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
+  const [editQuestionType, setEditQuestionType] = useState<'mcq' | 'coding'>('mcq');
+  const [editCodingLanguage, setEditCodingLanguage] = useState<'c' | 'cpp' | 'java' | 'python' | 'javascript'>('python');
+  const [editCodeTemplate, setEditCodeTemplate] = useState('');
+  const [editQuestionText, setEditQuestionText] = useState('');
+  const [editOpt1, setEditOpt1] = useState('');
+  const [editOpt2, setEditOpt2] = useState('');
+  const [editOpt3, setEditOpt3] = useState('');
+  const [editOpt4, setEditOpt4] = useState('');
+  const [editCorrectOptionId, setEditCorrectOptionId] = useState('opt1');
+  const [editExplanation, setEditExplanation] = useState('');
+  const [editMarks, setEditMarks] = useState(1.0);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const openEditModal = (q: QuestionBankItem) => {
+    setEditingQuestion(q);
+    setEditSubject(q.subject || 'Python');
+    setEditTopic(q.topic || 'General');
+    setEditDifficulty(q.difficulty || 'medium');
+    setEditQuestionType((q.question_type as any) === 'coding' ? 'coding' : 'mcq');
+    setEditCodingLanguage((q.coding_language as any) || 'python');
+    setEditCodeTemplate(q.code_template || '');
+    setEditQuestionText(q.question_text || '');
+    setEditExplanation(q.explanation || '');
+    setEditMarks(q.marks || 1.0);
+
+    const opts = q.options || [];
+    setEditOpt1(opts.find(o => o.id === 'opt1')?.text || opts[0]?.text || '');
+    setEditOpt2(opts.find(o => o.id === 'opt2')?.text || opts[1]?.text || '');
+    setEditOpt3(opts.find(o => o.id === 'opt3')?.text || opts[2]?.text || '');
+    setEditOpt4(opts.find(o => o.id === 'opt4')?.text || opts[3]?.text || '');
+    setEditCorrectOptionId(q.correct_option_id || 'opt1');
+    setEditError(null);
+    setIsEditOpen(true);
+  };
+
+  const handleUpdateQuestion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingQuestion) return;
+    setEditError(null);
+
+    if (editQuestionType === 'mcq' && (!editOpt1 || !editOpt2 || !editOpt3 || !editOpt4)) {
+      setEditError('Please provide all 4 answer options for MCQ questions.');
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+      const res = await fetch(`/api/admin/question-bank/${editingQuestion.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject: editSubject.trim(),
+          topic: editTopic.trim(),
+          difficulty: editDifficulty,
+          question_type: editQuestionType,
+          coding_language: editQuestionType === 'coding' ? editCodingLanguage : undefined,
+          code_template: editQuestionType === 'coding' ? editCodeTemplate : undefined,
+          question_text: editQuestionText,
+          options: editQuestionType === 'mcq' ? [
+            { id: 'opt1', text: editOpt1 },
+            { id: 'opt2', text: editOpt2 },
+            { id: 'opt3', text: editOpt3 },
+            { id: 'opt4', text: editOpt4 },
+          ] : [],
+          correct_option_id: editQuestionType === 'mcq' ? editCorrectOptionId : undefined,
+          explanation: editExplanation,
+          marks: editMarks,
+          negative_penalty: 0
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update question');
+
+      if (data.question) {
+        setQuestions(prev => prev.map(item => item.id === editingQuestion.id ? data.question : item));
+      }
+
+      setIsEditOpen(false);
+      setEditingQuestion(null);
+      fetchQuestions();
+    } catch (err: unknown) {
+      setEditError(err instanceof Error ? err.message : 'Error updating question');
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -426,6 +522,13 @@ export default function QuestionBankPage() {
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100">
                       +{q.marks} Mark
                     </span>
+                    <button
+                      onClick={() => openEditModal(q)}
+                      className="text-slate-400 hover:text-indigo-600 p-1 rounded-md transition cursor-pointer"
+                      title="Edit Question"
+                    >
+                      <Pencil size={15} />
+                    </button>
                     <button
                       onClick={() => handleDelete(q.id)}
                       className="text-slate-400 hover:text-rose-600 p-1 rounded-md transition cursor-pointer"
