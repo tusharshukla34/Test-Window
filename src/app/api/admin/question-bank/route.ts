@@ -78,3 +78,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+export async function DELETE() {
+  try {
+    await requireAdmin();
+    await ensureCloudSyncReady();
+    const count = dbService.clearAllQuestions();
+    await syncDatabaseToCloud();
+    return NextResponse.json({ success: true, count, message: `Successfully cleared ${count} questions from question bank.` });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to clear question bank';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+

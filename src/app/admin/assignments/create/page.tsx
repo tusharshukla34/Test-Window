@@ -17,7 +17,7 @@ export default function CreateAssignmentPage() {
 
   // Form State
   const [title, setTitle] = useState('');
-  const [subject, setSubject] = useState('Mechanical Engineering');
+  const [subject, setSubject] = useState('');
   const [instructions, setInstructions] = useState('');
   const [instructionsTab, setInstructionsTab] = useState<'write' | 'preview'>('write');
   const [submissionType, setSubmissionType] = useState<'both' | 'file_upload' | 'text_response'>('both');
@@ -176,7 +176,7 @@ export default function CreateAssignmentPage() {
               <input
                 type="text"
                 required
-                placeholder="e.g. Mechanical Engineering / Heat Transfer"
+                placeholder="e.g. Python Programming / Web Development"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 className="clay-input w-full p-2.5 text-xs text-slate-800"
