@@ -34,14 +34,17 @@ const QUICK_TOPIC_PRESETS = [
   { subject: 'Computer Science', topic: 'Data Structures & Algorithms' },
 ];
 
+// In-memory module cache for instant 0ms restoration
+let cachedQuestions: QuestionBankItem[] | null = null;
+
 export default function QuestionBankPage() {
-  const [questions, setQuestions] = useState<QuestionBankItem[]>([]);
+  const [questions, setQuestions] = useState<QuestionBankItem[]>(() => cachedQuestions || []);
   const [search, setSearch] = useState('');
   const [selectedTopic, setSelectedTopic] = useState('all');
   const [selectedSubject, setSelectedSubject] = useState('all');
   const [selectedType, setSelectedType] = useState('all');
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(() => !cachedQuestions);
 
   // New question form state - Default to Python
   const [subject, setSubject] = useState('Python Programming');
@@ -70,6 +73,7 @@ export default function QuestionBankPage() {
       }
       const data = await res.json();
       if (Array.isArray(data)) {
+        cachedQuestions = data;
         setQuestions(data);
       }
     } catch {}
@@ -433,9 +437,18 @@ export default function QuestionBankPage() {
       {/* Filter Status summary */}
       <div className="flex items-center justify-between text-xs text-slate-500 px-1">
         <span>
-          Showing <strong className="text-slate-800">{filtered.length}</strong> of {questions.length} questions
-          {selectedTopic !== 'all' && (
-            <span> in topic <strong className="text-indigo-600">"{selectedTopic}"</strong></span>
+          {loading && questions.length === 0 ? (
+            <span className="flex items-center gap-2 text-indigo-600 font-semibold animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-indigo-600 animate-ping"></span>
+              Loading Question Bank from cloud...
+            </span>
+          ) : (
+            <>
+              Showing <strong className="text-slate-800">{filtered.length}</strong> of {questions.length} questions
+              {selectedTopic !== 'all' && (
+                <span> in topic <strong className="text-indigo-600">"{selectedTopic}"</strong></span>
+              )}
+            </>
           )}
         </span>
         {selectedTopic !== 'all' && (
@@ -455,7 +468,27 @@ export default function QuestionBankPage() {
 
       {/* Questions List */}
       <div className="space-y-4">
-        {filtered.length === 0 ? (
+        {loading && questions.length === 0 ? (
+          <div className="space-y-4">
+            {[1, 2, 3].map(i => (
+              <ClayCard key={i} className="p-6 space-y-3 animate-pulse border border-slate-200/70 bg-white shadow-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-5 bg-slate-200 rounded-md w-12"></div>
+                    <div className="h-4 bg-slate-200 rounded w-44"></div>
+                    <div className="h-4 bg-slate-100 rounded w-24"></div>
+                  </div>
+                  <div className="h-5 bg-slate-100 rounded-md w-16"></div>
+                </div>
+                <div className="h-4 bg-slate-200 rounded w-5/6 mt-2"></div>
+                <div className="h-3 bg-slate-100 rounded w-2/3"></div>
+                <div className="h-20 bg-slate-900/10 rounded-xl mt-3 flex items-center justify-center text-xs text-slate-400 font-mono">
+                  Loading question details...
+                </div>
+              </ClayCard>
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
           <ClayCard className="p-10 text-center space-y-3">
             <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto">
               <BookOpen size={24} />
