@@ -867,6 +867,221 @@ export default function QuestionBankPage() {
           </div>
         </form>
       </Modal>
+
+      {/* Edit Question Modal */}
+      <Modal
+        isOpen={isEditOpen}
+        onClose={() => {
+          setIsEditOpen(false);
+          setEditingQuestion(null);
+        }}
+        title="Edit Question"
+        maxWidth="max-w-2xl"
+      >
+        <form onSubmit={handleUpdateQuestion} className="space-y-4">
+          {editError && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs">
+              {editError}
+            </div>
+          )}
+
+          {/* Question Type Selection */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Question Type</label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { type: 'mcq', label: 'MCQ (Multiple Choice)' },
+                { type: 'coding', label: 'Practical Coding' },
+              ].map(t => (
+                <button
+                  type="button"
+                  key={t.type}
+                  onClick={() => setEditQuestionType(t.type as any)}
+                  className={`py-2 px-3 text-xs font-bold rounded-xl border transition cursor-pointer ${
+                    editQuestionType === t.type
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Subject, Topic, Difficulty */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Subject</label>
+              <input
+                type="text"
+                list="edit-subjects-datalist"
+                required
+                placeholder="e.g. Python"
+                value={editSubject}
+                onChange={(e) => setEditSubject(e.target.value)}
+                className="clay-input w-full p-2 text-xs text-slate-800"
+              />
+              <datalist id="edit-subjects-datalist">
+                {uniqueSubjects.map(s => <option key={s} value={s} />)}
+              </datalist>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Topic</label>
+              <input
+                type="text"
+                list="edit-topics-datalist"
+                required
+                placeholder="e.g. Core Python Questions"
+                value={editTopic}
+                onChange={(e) => setEditTopic(e.target.value)}
+                className="clay-input w-full p-2 text-xs text-slate-800"
+              />
+              <datalist id="edit-topics-datalist">
+                {uniqueTopics.map(t => <option key={t} value={t} />)}
+              </datalist>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Difficulty</label>
+              <select
+                value={editDifficulty}
+                onChange={(e) => setEditDifficulty(e.target.value as any)}
+                className="clay-input w-full p-2 text-xs text-slate-800"
+              >
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Question Text */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Question Statement</label>
+            <textarea
+              rows={4}
+              required
+              placeholder="Enter the question problem, prompt, or task..."
+              value={editQuestionText}
+              onChange={(e) => setEditQuestionText(e.target.value)}
+              className="clay-input w-full p-2.5 text-xs text-slate-800"
+            />
+          </div>
+
+          {/* Coding Specific Configuration */}
+          {editQuestionType === 'coding' && (
+            <div className="p-3.5 bg-blue-50/50 rounded-xl border border-blue-100 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-blue-900">Coding Language</label>
+                <select
+                  value={editCodingLanguage}
+                  onChange={(e) => setEditCodingLanguage(e.target.value as any)}
+                  className="clay-input py-1 px-2.5 text-xs text-slate-800"
+                >
+                  <option value="python">Python</option>
+                  <option value="c">C</option>
+                  <option value="cpp">C++</option>
+                  <option value="java">Java</option>
+                  <option value="javascript">JavaScript</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-blue-900 mb-1">
+                  Starter Code Template (Code Box)
+                </label>
+                <textarea
+                  rows={5}
+                  placeholder="# Starter template code for student:"
+                  value={editCodeTemplate}
+                  onChange={(e) => setEditCodeTemplate(e.target.value)}
+                  className="w-full p-2 text-xs font-mono bg-slate-900 text-slate-200 rounded-lg border border-slate-700 focus:outline-none"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* MCQ Options Configuration */}
+          {editQuestionType === 'mcq' && (
+            <div className="space-y-3 pt-1">
+              <label className="block text-xs font-semibold text-slate-700">Answer Options & Correct Key</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  { id: 'opt1', val: editOpt1, set: setEditOpt1, label: 'Option 1' },
+                  { id: 'opt2', val: editOpt2, set: setEditOpt2, label: 'Option 2' },
+                  { id: 'opt3', val: editOpt3, set: setEditOpt3, label: 'Option 3' },
+                  { id: 'opt4', val: editOpt4, set: setEditOpt4, label: 'Option 4' },
+                ].map(opt => (
+                  <div key={opt.id} className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="editCorrectOption"
+                      checked={editCorrectOptionId === opt.id}
+                      onChange={() => setEditCorrectOptionId(opt.id)}
+                      className="text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      title="Mark as correct answer"
+                    />
+                    <input
+                      type="text"
+                      required={editQuestionType === 'mcq'}
+                      placeholder={opt.label}
+                      value={opt.val}
+                      onChange={(e) => opt.set(e.target.value)}
+                      className={`clay-input flex-1 p-2 text-xs text-slate-800 ${
+                        editCorrectOptionId === opt.id ? 'border-emerald-400 bg-emerald-50/30' : ''
+                      }`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Explanation */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Review Explanation (Shown post-examination)
+            </label>
+            <textarea
+              rows={2}
+              placeholder="Provide pedagogical rationale or solution notes..."
+              value={editExplanation}
+              onChange={(e) => setEditExplanation(e.target.value)}
+              className="clay-input w-full p-2.5 text-xs text-slate-800"
+            />
+          </div>
+
+          {/* Marks Configuration */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Score (+Marks per Question)</label>
+            <input
+              type="number"
+              step="0.5"
+              min="0.5"
+              required
+              value={editMarks}
+              onChange={(e) => setEditMarks(parseFloat(e.target.value) || 1.0)}
+              className="clay-input w-full p-2 text-xs text-slate-800"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <ClayButton
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setIsEditOpen(false);
+                setEditingQuestion(null);
+              }}
+            >
+              Cancel
+            </ClayButton>
+            <ClayButton type="submit" variant="primary" disabled={isUpdating}>
+              {isUpdating ? 'Saving...' : 'Save Changes'}
+            </ClayButton>
+          </div>
+        </form>
+      </Modal>
+
     </div>
   );
 }
