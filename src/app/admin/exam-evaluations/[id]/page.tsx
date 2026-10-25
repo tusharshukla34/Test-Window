@@ -504,9 +504,9 @@ export default function AdminAttemptEvaluationPage() {
               </div>
 
               {/* Question Text */}
-              <p className="text-sm font-bold text-slate-900 leading-snug break-words">
+              <div className="text-sm font-bold text-slate-900 leading-relaxed break-words whitespace-pre-wrap">
                 {q.question_text}
-              </p>
+              </div>
 
               {/* Question Body: Type Specific Candidate Submission */}
               {type === 'coding' && (

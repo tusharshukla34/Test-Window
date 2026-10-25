@@ -572,9 +572,9 @@ export default function QuestionBankPage() {
                   </div>
                 </div>
 
-                <p className="text-sm font-bold text-slate-900 break-words">
+                <div className="text-sm font-bold text-slate-900 break-words whitespace-pre-wrap leading-relaxed">
                   {q.question_text}
-                </p>
+                </div>
 
                 {/* Question Format Specific Body */}
                 {type === 'coding' && (
@@ -626,7 +626,7 @@ export default function QuestionBankPage() {
                           }`}>
                             {opt.id.replace('opt', '')}
                           </span>
-                          <span className="break-words min-w-0 flex-1">{opt.text}</span>
+                          <span className="break-words min-w-0 flex-1 whitespace-pre-wrap">{opt.text}</span>
                           {isCorrect && <CheckCircle2 size={14} className="text-emerald-600 shrink-0 ml-auto" />}
                         </div>
                       );
@@ -636,7 +636,7 @@ export default function QuestionBankPage() {
 
                 {/* Explanation */}
                 {q.explanation && (
-                  <div className="mt-2 p-2.5 rounded-lg bg-indigo-50/50 border border-indigo-100 text-[11px] text-indigo-900">
+                  <div className="mt-2 p-2.5 rounded-lg bg-indigo-50/50 border border-indigo-100 text-[11px] text-indigo-900 whitespace-pre-wrap leading-relaxed">
                     <strong>Review Explanation:</strong> {q.explanation}
                   </div>
                 )}

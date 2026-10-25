@@ -653,7 +653,7 @@ export default function AdminExamsPage() {
                       <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1 rounded">+{q.marks}m</span>
                       <span className="text-[10px] text-slate-400">({q.topic})</span>
                     </div>
-                    <p className="line-clamp-2 text-slate-800">{q.question_text}</p>
+                    <p className="line-clamp-2 text-slate-800 whitespace-pre-line">{q.question_text}</p>
                   </div>
                 </label>
               ))}

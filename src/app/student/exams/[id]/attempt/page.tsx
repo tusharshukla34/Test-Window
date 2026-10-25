@@ -956,7 +956,7 @@ export default function ExamAttemptPage() {
             </div>
 
             {/* Question Text */}
-            <div className="text-sm sm:text-base font-medium sm:font-semibold text-slate-900 leading-relaxed pt-1 break-words">
+            <div className="text-sm sm:text-base font-medium sm:font-semibold text-slate-900 leading-relaxed pt-1 break-words whitespace-pre-wrap">
               {currentQuestion.question_text}
             </div>
 
@@ -1198,8 +1198,8 @@ export default function ExamAttemptPage() {
             <div className="p-3.5 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4">
               {questions.map((q, idx) => (
                 <div key={q.id} className="p-3 sm:p-3.5 rounded-xl border border-slate-200 text-xs space-y-2">
-                  <div className="flex items-center justify-between font-bold text-slate-900 break-words">
-                    <span>Q{idx + 1}. {q.question_text}</span>
+                  <div className="flex items-start justify-between gap-2 font-bold text-slate-900 break-words">
+                    <span className="whitespace-pre-wrap flex-1">Q{idx + 1}. {q.question_text}</span>
                     <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 uppercase font-mono">
                       {q.question_type || 'mcq'}
                     </span>

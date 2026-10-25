@@ -405,9 +405,9 @@ export default function StudentExamResultPage() {
                     </div>
                   </div>
 
-                  <p className="text-sm font-bold text-slate-900 break-words">
+                  <div className="text-sm font-bold text-slate-900 break-words whitespace-pre-wrap leading-relaxed">
                     {q.question_text}
-                  </p>
+                  </div>
 
                   {/* Coding Answer */}
                   {type === 'coding' && (
@@ -506,7 +506,7 @@ export default function StudentExamResultPage() {
 
                   {/* Explanation */}
                   {q.explanation && (
-                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70 text-xs text-slate-700 leading-relaxed mt-2">
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70 text-xs text-slate-700 leading-relaxed mt-2 whitespace-pre-wrap">
                       <strong className="text-slate-900">Scientific Explanation / Solution:</strong> {q.explanation}
                     </div>
                   )}
