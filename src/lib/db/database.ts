@@ -1899,6 +1899,80 @@ export const dbService = {
     return this.getExamById(id)!;
   },
 
+  updateExam(id: string, data: {
+    title?: string;
+    description?: string;
+    instructions?: string;
+    duration_minutes?: number;
+    negative_marking?: number;
+    passing_percentage?: number;
+    end_window?: string | null;
+  }): (Exam & { target_batches: string[]; questions: QuestionBankItem[] }) | null {
+    const existing = db.prepare('SELECT * FROM exams WHERE id = ?').get(id) as Exam | undefined;
+    if (!existing) return null;
+
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (data.title !== undefined) {
+      fields.push('title = ?');
+      values.push(data.title.trim());
+    }
+    if (data.description !== undefined) {
+      fields.push('description = ?');
+      values.push(data.description ? data.description.trim() : null);
+    }
+    if (data.instructions !== undefined) {
+      fields.push('instructions = ?');
+      values.push(data.instructions ? data.instructions.trim() : null);
+    }
+    if (data.duration_minutes !== undefined) {
+      fields.push('duration_minutes = ?');
+      values.push(Math.max(1, Number(data.duration_minutes)));
+    }
+    if (data.negative_marking !== undefined) {
+      fields.push('negative_marking = ?');
+      values.push(Math.max(0, Number(data.negative_marking)));
+    }
+    if (data.end_window !== undefined) {
+      fields.push('end_window = ?');
+      values.push(data.end_window || null);
+    }
+    if (data.passing_percentage !== undefined) {
+      const passPct = Math.max(1, Math.min(100, Number(data.passing_percentage)));
+      fields.push('passing_percentage = ?');
+      values.push(passPct);
+
+      // Update snapshot in all attempts of this exam
+      db.prepare(`
+        UPDATE exam_attempts
+        SET exam_passing_percentage = ?
+        WHERE exam_id = ?
+      `).run(passPct, id);
+
+      // Re-evaluate pass/fail status for completed or published student scorecards
+      db.prepare(`
+        UPDATE exam_attempts
+        SET result_status = CASE
+          WHEN is_absent = 1 THEN 'absent_fail'
+          WHEN percentage >= ? THEN 'pass'
+          ELSE 'fail'
+        END
+        WHERE exam_id = ? AND (status = 'completed' OR is_published = 1)
+      `).run(passPct, id);
+    }
+
+    if (fields.length > 0) {
+      fields.push("updated_at = datetime('now')");
+      values.push(id);
+      db.prepare(`UPDATE exams SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+    }
+
+    syncDatabaseToCloud();
+
+    return this.getExamById(id);
+  },
+
   deleteExam(id: string): boolean {
     // 1. Process deadline for this exam so unattempted students are marked absent/failed
     try {

@@ -106,7 +106,7 @@ export default function StudentResultsHubPage() {
             const isAwaiting = submission_state === 'awaiting_evaluation';
             const isEvaluatedNotPublished = isAwaiting && attempt?.evaluation_status === 'evaluated';
             const isAbsent = Boolean(attempt?.is_absent || (attempt as any)?.result_status === 'absent_fail');
-            const passPct = (exam as any)?.passing_percentage ?? 40.0;
+            const passPct = (exam as any)?.passing_percentage ?? (attempt as any)?.exam_passing_percentage ?? 40.0;
             const isPass = !isAbsent && Number(attempt?.percentage || 0) >= passPct;
 
             return (

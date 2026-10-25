@@ -21,9 +21,11 @@ import {
   ChevronUp,
   ExternalLink,
   ShieldCheck,
-  Search
+  Search,
+  Pencil,
+  Target
 } from 'lucide-react';
-import { ClayCard, ClayButton } from '@/components/ui/ClayComponents';
+import { ClayCard, ClayButton, Modal } from '@/components/ui/ClayComponents';
 
 interface ExamPassFailStudent {
   student_id: string;
@@ -115,6 +117,45 @@ export default function AdminDashboardPage() {
   const [expandedExamId, setExpandedExamId] = useState<string | null>(null);
   const [reportFilter, setReportFilter] = useState<'all' | 'active' | 'archived'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Quick Edit Passing Percentage Modal State
+  const [editPassModalOpen, setEditPassModalOpen] = useState(false);
+  const [editPassExamId, setEditPassExamId] = useState<string | null>(null);
+  const [editPassExamTitle, setEditPassExamTitle] = useState('');
+  const [editPassPercentage, setEditPassPercentage] = useState(40);
+  const [editPassMaxMarks, setEditPassMaxMarks] = useState(20);
+  const [editPassSaving, setEditPassSaving] = useState(false);
+
+  const openPassEditModal = (examId: string, title: string, currentPct: number, maxMarks: number) => {
+    setEditPassExamId(examId);
+    setEditPassExamTitle(title);
+    setEditPassPercentage(currentPct || 40);
+    setEditPassMaxMarks(maxMarks || 20);
+    setEditPassModalOpen(true);
+  };
+
+  const handleSavePassPercentage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editPassExamId) return;
+    setEditPassSaving(true);
+    try {
+      const res = await fetch(`/api/admin/exams/${editPassExamId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passing_percentage: Number(editPassPercentage) || 40 })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update passing percentage');
+      setEditPassModalOpen(false);
+      cachedAdminStats = null;
+      fetchDashboard();
+      alert(`Success! Updated passing cutoff for "${editPassExamTitle}" to ${editPassPercentage}% (${((editPassMaxMarks * editPassPercentage) / 100).toFixed(1)} marks).\nAudit report has been updated!`);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error updating passing percentage');
+    } finally {
+      setEditPassSaving(false);
+    }
+  };
 
   const fetchDashboard = () => {
     if (!cachedAdminStats) setLoading(true);
@@ -622,7 +663,7 @@ export default function AdminDashboardPage() {
                               </span>
                             )}
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700">
-                              Pass Mark: ≥{rep.passing_percentage}%
+                              Pass Mark: ≥{rep.passing_percentage}% ({((rep.max_marks * rep.passing_percentage) / 100).toFixed(1)}m)
                             </span>
                           </div>
 
@@ -702,13 +743,23 @@ export default function AdminDashboardPage() {
                       {/* Expanded Student Pass/Fail Table */}
                       {isExpanded && (
                         <div className="border-t border-slate-200 bg-slate-50/70 p-4 sm:p-5 animate-in fade-in space-y-3">
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
                             <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
                               <ShieldCheck size={14} className="text-indigo-600" /> Student Examination Audit Ledger ({rep.students.length} Total Cohort Students)
                             </h5>
-                            <span className="text-[11px] text-slate-500">
-                              Required Pass Score: {((rep.max_marks * rep.passing_percentage) / 100).toFixed(1)} marks ({rep.passing_percentage}%)
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] text-slate-500 font-medium">
+                                Required Pass Score: <strong className="text-emerald-700 font-mono font-bold">{((rep.max_marks * rep.passing_percentage) / 100).toFixed(1)} marks ({rep.passing_percentage}%)</strong>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => openPassEditModal(rep.exam_id, rep.title, rep.passing_percentage, rep.max_marks)}
+                                className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition flex items-center gap-1 cursor-pointer"
+                                title="Change passing percentage for this exam"
+                              >
+                                <Pencil size={10} /> Edit Cutoff %
+                              </button>
+                            </div>
                           </div>
 
                           {rep.students.length === 0 ? (
@@ -795,6 +846,104 @@ export default function AdminDashboardPage() {
           </ClayCard>
         );
       })()}
+
+      {/* Quick Edit Passing Percentage Modal */}
+      <Modal
+        isOpen={editPassModalOpen}
+        onClose={() => setEditPassModalOpen(false)}
+        title="Adjust Examination Passing Cutoff"
+      >
+        <form onSubmit={handleSavePassPercentage} className="space-y-4">
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-1">
+            <div className="font-bold text-slate-900 text-sm">{editPassExamTitle}</div>
+            <div className="text-slate-500 text-[11px]">
+              Total Maximum Marks: <strong className="text-slate-800 font-mono">{editPassMaxMarks} marks</strong>
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                <Target size={14} className="text-emerald-700" /> Passing Percentage & Cutoff Marks
+              </label>
+              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
+                Immediate Re-evaluation
+              </span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <div className="w-full sm:w-44">
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Cutoff Percentage (%)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    required
+                    value={editPassPercentage}
+                    onChange={(e) => setEditPassPercentage(Number(e.target.value))}
+                    className="clay-input w-full p-2.5 text-xs text-slate-800 font-mono pr-8 font-bold text-sm bg-white"
+                  />
+                  <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">%</span>
+                </div>
+              </div>
+
+              <div className="flex-1">
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  Quick Presets:
+                </label>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[33, 40, 50, 60, 75].map(pct => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => setEditPassPercentage(pct)}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition cursor-pointer ${
+                        Number(editPassPercentage) === pct
+                          ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {pct}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-white border border-emerald-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <div className="font-bold text-emerald-950 text-xs sm:text-sm">
+                  Required Pass Score: <span className="font-mono text-emerald-700 text-sm font-extrabold">{((editPassMaxMarks * Number(editPassPercentage || 0)) / 100).toFixed(1)} marks</span> ({editPassPercentage}%)
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  Calculated from {editPassMaxMarks} maximum marks
+                </div>
+              </div>
+              <div className="text-[11px] text-slate-600 bg-slate-50 px-2.5 py-1 rounded border border-slate-100 sm:text-right">
+                Score ≥ <strong>{((editPassMaxMarks * Number(editPassPercentage || 0)) / 100).toFixed(1)}</strong>: <span className="text-emerald-700 font-bold">PASS</span><br />
+                Score &lt; <strong>{((editPassMaxMarks * Number(editPassPercentage || 0)) / 100).toFixed(1)}</strong>: <span className="text-rose-600 font-bold">FAIL</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <ClayButton
+              type="button"
+              variant="secondary"
+              onClick={() => setEditPassModalOpen(false)}
+              disabled={editPassSaving}
+            >
+              Cancel
+            </ClayButton>
+            <ClayButton type="submit" variant="primary" disabled={editPassSaving}>
+              {editPassSaving ? 'Saving...' : 'Update & Re-evaluate Roster'}
+            </ClayButton>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

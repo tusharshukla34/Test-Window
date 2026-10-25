@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   FileSpreadsheet,
@@ -11,7 +11,9 @@ import {
   BarChart3,
   Users,
   ArrowRight,
-  Trash2
+  Trash2,
+  Pencil,
+  Target
 } from 'lucide-react';
 import { ClayCard, ClayButton, Modal } from '@/components/ui/ClayComponents';
 import { Exam, Batch, QuestionBankItem } from '@/lib/db/types';
@@ -90,6 +92,29 @@ export default function AdminExamsPage() {
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
   const [examTopicFilter, setExamTopicFilter] = useState('all');
   const [error, setError] = useState<string | null>(null);
+
+  // Edit Exam Criteria Modal State
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingExam, setEditingExam] = useState<(Exam & { recipient_batch_names: string[]; attempt_count: number }) | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDuration, setEditDuration] = useState(20);
+  const [editPassingPercentage, setEditPassingPercentage] = useState(40);
+  const [editDeadline, setEditDeadline] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  // Dynamic calculations for exam creation
+  const selectedQuestions = useMemo(() => {
+    return questions.filter(q => selectedQuestionIds.includes(q.id));
+  }, [questions, selectedQuestionIds]);
+
+  const totalExamMarks = useMemo(() => {
+    return selectedQuestions.reduce((sum, q) => sum + (Number(q.marks) || 1), 0);
+  }, [selectedQuestions]);
+
+  const requiredPassScore = useMemo(() => {
+    return Number(((totalExamMarks * Number(passingPercentage || 0)) / 100).toFixed(1));
+  }, [totalExamMarks, passingPercentage]);
 
   const fetchData = async () => {
     try {
@@ -196,6 +221,68 @@ export default function AdminExamsPage() {
     const pad = (n: number) => n.toString().padStart(2, '0');
     const formatted = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
     setDeadline(formatted);
+  };
+
+  const openEditModal = (exam: Exam & { recipient_batch_names: string[]; attempt_count: number }) => {
+    setEditingExam(exam);
+    setEditTitle(exam.title);
+    setEditDuration(exam.duration_minutes);
+    setEditPassingPercentage(exam.passing_percentage ?? 40);
+    if (exam.end_window) {
+      const d = new Date(exam.end_window);
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      setEditDeadline(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+    } else {
+      setEditDeadline('');
+    }
+    setEditError(null);
+    setIsEditOpen(true);
+  };
+
+  const handleUpdateExam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingExam) return;
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      const res = await fetch(`/api/admin/exams/${editingExam.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: editTitle,
+          duration_minutes: Number(editDuration) || 20,
+          passing_percentage: Number(editPassingPercentage) || 40,
+          end_window: editDeadline ? new Date(editDeadline).toISOString() : null
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update exam');
+      setIsEditOpen(false);
+      fetchData();
+      alert(`Success! Updated passing cutoff to ${editPassingPercentage}% (${((editingExam.max_marks * editPassingPercentage) / 100).toFixed(1)} marks).\nStudent scorecards & audit reports have been re-evaluated!`);
+    } catch (err: unknown) {
+      setEditError(err instanceof Error ? err.message : 'Error updating exam');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const setEditPresetDeadline = (preset: 'tonight' | 'tomorrow' | '48h' | 'clear') => {
+    if (preset === 'clear') {
+      setEditDeadline('');
+      return;
+    }
+    const d = new Date();
+    if (preset === 'tonight') {
+      d.setHours(23, 59, 0, 0);
+    } else if (preset === 'tomorrow') {
+      d.setDate(d.getDate() + 1);
+      d.setHours(23, 59, 0, 0);
+    } else if (preset === '48h') {
+      d.setHours(d.getHours() + 48);
+    }
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    setEditDeadline(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
   };
 
   const displayedExams = exams.filter(e => showArchived ? true : !e.is_deleted);
@@ -338,9 +425,9 @@ export default function AdminExamsPage() {
                     </div>
 
                     <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
-                      <span className="text-slate-500 font-semibold">Pass Criteria:</span>
+                      <span className="text-slate-500 font-semibold">Pass Cutoff:</span>
                       <span className="font-bold text-emerald-700 font-mono">
-                        ≥{exam.passing_percentage ?? 40}% to Pass
+                        ≥{exam.passing_percentage ?? 40}% ({((exam.max_marks * (exam.passing_percentage ?? 40)) / 100).toFixed(1)} / {exam.max_marks}m)
                       </span>
                     </div>
 
@@ -384,7 +471,16 @@ export default function AdminExamsPage() {
                     {exam.attempt_count} attempts taken
                   </span>
 
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {!isArchived && (
+                      <button
+                        onClick={() => openEditModal(exam)}
+                        title="Edit Passing Cutoff & Deadline"
+                        className="px-2 py-1 text-[11px] font-bold rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition flex items-center gap-1 cursor-pointer"
+                      >
+                        <Pencil size={11} /> Edit Cutoff
+                      </button>
+                    )}
                     {hasDeadline && !isArchived && (
                       <button
                         onClick={() => handleFinalizeDeadline(exam.id, exam.title)}
@@ -406,7 +502,7 @@ export default function AdminExamsPage() {
                       <button
                         onClick={() => handleDeleteExam(exam.id, exam.title)}
                         title="Remove Exam (Preserves all scorecards permanently)"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -445,8 +541,8 @@ export default function AdminExamsPage() {
             />
           </div>
 
-          {/* Duration, Passing Percentage & Negative Penalty */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Duration & Negative Penalty */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Duration (Minutes)</label>
               <input
@@ -458,21 +554,6 @@ export default function AdminExamsPage() {
                 onChange={(e) => setDurationMinutes(Number(e.target.value))}
                 className="clay-input w-full p-2.5 text-xs text-slate-800 font-mono"
               />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Passing Mark (%)</label>
-              <div className="relative">
-                <input
-                  type="number"
-                  min={1}
-                  max={100}
-                  required
-                  value={passingPercentage}
-                  onChange={(e) => setPassingPercentage(Number(e.target.value))}
-                  className="clay-input w-full p-2.5 text-xs text-slate-800 font-mono pr-8"
-                />
-                <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">%</span>
-              </div>
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Negative Penalty</label>
@@ -487,6 +568,74 @@ export default function AdminExamsPage() {
                 <option value={0.5}>-0.50 (Half mark)</option>
                 <option value={1}>-1.00 (Full penalty)</option>
               </select>
+            </div>
+          </div>
+
+          {/* Manual Passing Percentage & Cutoff Configuration */}
+          <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/90 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                <Target size={14} className="text-emerald-700" /> Passing Percentage & Cutoff Marks (Manual Setting)
+              </label>
+              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
+                Trainer Controlled
+              </span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <div className="w-full sm:w-44">
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Passing Cutoff (%)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    required
+                    value={passingPercentage}
+                    onChange={(e) => setPassingPercentage(Number(e.target.value))}
+                    className="clay-input w-full p-2.5 text-xs text-slate-800 font-mono pr-8 font-bold text-sm bg-white"
+                  />
+                  <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">%</span>
+                </div>
+              </div>
+
+              <div className="flex-1">
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  Quick Presets:
+                </label>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[33, 40, 50, 60, 75].map(pct => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => setPassingPercentage(pct)}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition cursor-pointer ${
+                        Number(passingPercentage) === pct
+                          ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {pct}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Live Calculated Required Score Preview */}
+            <div className="p-2.5 rounded-lg bg-white border border-emerald-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <span className="text-slate-500 text-[11px]">Exam Scope: <strong>{selectedQuestionIds.length} Questions</strong> ({totalExamMarks} Total Marks)</span>
+                <div className="font-bold text-emerald-900 text-xs sm:text-sm mt-0.5">
+                  Required Pass Score: <span className="font-mono text-emerald-700 text-sm font-extrabold">{requiredPassScore.toFixed(1)} marks</span> ({passingPercentage}%)
+                </div>
+              </div>
+              <div className="text-[11px] text-slate-600 bg-slate-50 px-2.5 py-1 rounded border border-slate-100 sm:text-right">
+                Score ≥ <strong>{requiredPassScore.toFixed(1)}</strong>: <span className="text-emerald-700 font-bold">PASS</span><br />
+                Score &lt; <strong>{requiredPassScore.toFixed(1)}</strong>: <span className="text-rose-600 font-bold">FAIL</span>
+              </div>
             </div>
           </div>
 
@@ -574,7 +723,7 @@ export default function AdminExamsPage() {
           <div>
             <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
               <label className="text-xs font-semibold text-slate-700">
-                Select Exam Questions ({selectedQuestionIds.length} of {questions.length} selected)
+                Select Exam Questions ({selectedQuestionIds.length} of {questions.length} selected • {totalExamMarks} Marks Total)
               </label>
               <div className="flex items-center gap-2">
                 <button
@@ -670,6 +819,194 @@ export default function AdminExamsPage() {
             </ClayButton>
             <ClayButton type="submit" variant="primary">
               Schedule & Publish Exam
+            </ClayButton>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit Exam Criteria & Cutoff Modal */}
+      <Modal
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        title="Edit Exam Passing Cutoff & Deadline"
+      >
+        <form onSubmit={handleUpdateExam} className="space-y-4">
+          {editError && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
+              {editError}
+            </div>
+          )}
+
+          {editingExam && (
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-1">
+              <div className="font-bold text-slate-900 text-sm">{editingExam.title}</div>
+              <div className="flex items-center gap-3 text-slate-500 text-[11px] flex-wrap">
+                <span>Total Questions: <strong>{editingExam.total_questions}</strong></span>
+                <span>•</span>
+                <span>Maximum Marks: <strong className="text-slate-800 font-mono">{editingExam.max_marks} marks</strong></span>
+                <span>•</span>
+                <span>Target Batches: <strong>{(editingExam.recipient_batch_names || []).join(', ') || 'Assigned'}</strong></span>
+              </div>
+            </div>
+          )}
+
+          {/* Passing Percentage & Cutoff Box */}
+          <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                <Target size={14} className="text-emerald-700" /> Adjust Passing Percentage & Cutoff Marks
+              </label>
+              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
+                Live Re-evaluation
+              </span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <div className="w-full sm:w-44">
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Passing Cutoff (%)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    required
+                    value={editPassingPercentage}
+                    onChange={(e) => setEditPassingPercentage(Number(e.target.value))}
+                    className="clay-input w-full p-2.5 text-xs text-slate-800 font-mono pr-8 font-bold text-sm bg-white"
+                  />
+                  <span className="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">%</span>
+                </div>
+              </div>
+
+              <div className="flex-1">
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  Quick Presets:
+                </label>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[33, 40, 50, 60, 75].map(pct => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => setEditPassingPercentage(pct)}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition cursor-pointer ${
+                        Number(editPassingPercentage) === pct
+                          ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {pct}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {editingExam && (
+              <div className="p-2.5 rounded-lg bg-white border border-emerald-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <div className="font-bold text-emerald-950 text-xs sm:text-sm">
+                    Required Pass Score: <span className="font-mono text-emerald-700 text-sm font-extrabold">{((editingExam.max_marks * Number(editPassingPercentage || 0)) / 100).toFixed(1)} marks</span> ({editPassingPercentage}%)
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    Calculated out of {editingExam.max_marks} Total Marks
+                  </div>
+                </div>
+                <div className="text-[11px] text-slate-600 bg-slate-50 px-2.5 py-1 rounded border border-slate-100 sm:text-right">
+                  Score ≥ <strong>{((editingExam.max_marks * Number(editPassingPercentage || 0)) / 100).toFixed(1)}</strong>: <span className="text-emerald-700 font-bold">PASS</span><br />
+                  Score &lt; <strong>{((editingExam.max_marks * Number(editPassingPercentage || 0)) / 100).toFixed(1)}</strong>: <span className="text-rose-600 font-bold">FAIL</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Exam Title & Duration */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Exam Title</label>
+              <input
+                type="text"
+                required
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="clay-input w-full p-2.5 text-xs text-slate-800"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Duration (Minutes)</label>
+              <input
+                type="number"
+                min={5}
+                max={300}
+                required
+                value={editDuration}
+                onChange={(e) => setEditDuration(Number(e.target.value))}
+                className="clay-input w-full p-2.5 text-xs text-slate-800 font-mono"
+              />
+            </div>
+          </div>
+
+          {/* Exam Deadline */}
+          <div className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-200/80 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                <Clock size={14} className="text-amber-700" /> Deadline & Auto-Fail Window
+              </label>
+            </div>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <input
+                type="datetime-local"
+                value={editDeadline}
+                onChange={(e) => setEditDeadline(e.target.value)}
+                className="clay-input flex-1 p-2 text-xs text-slate-800 font-mono bg-white"
+              />
+              <div className="flex items-center gap-1 shrink-0 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setEditPresetDeadline('tonight')}
+                  className="px-2 py-1 text-[10px] font-bold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Tonight
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditPresetDeadline('tomorrow')}
+                  className="px-2 py-1 text-[10px] font-bold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Tomorrow
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditPresetDeadline('48h')}
+                  className="px-2 py-1 text-[10px] font-bold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  48 Hours
+                </button>
+                {editDeadline && (
+                  <button
+                    type="button"
+                    onClick={() => setEditPresetDeadline('clear')}
+                    className="px-2 py-1 text-[10px] font-bold rounded-lg bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 transition cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <ClayButton
+              type="button"
+              variant="secondary"
+              onClick={() => setIsEditOpen(false)}
+              disabled={editSaving}
+            >
+              Cancel
+            </ClayButton>
+            <ClayButton type="submit" variant="primary" disabled={editSaving}>
+              {editSaving ? 'Saving...' : 'Save & Re-evaluate'}
             </ClayButton>
           </div>
         </form>

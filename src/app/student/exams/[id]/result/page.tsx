@@ -178,7 +178,7 @@ export default function StudentExamResultPage() {
   // Display official verified score card, teacher remarks & answers
   // -------------------------------------------------------------
   const isAbsent = Boolean(attempt.is_absent || (attempt as any).result_status === 'absent_fail');
-  const passPct = (exam as any).passing_percentage ?? 40.0;
+  const passPct = (exam as any)?.passing_percentage ?? (attempt as any)?.exam_passing_percentage ?? 40.0;
   const isPass = !isAbsent && Number(attempt.percentage || 0) >= passPct;
 
   return (

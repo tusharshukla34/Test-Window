@@ -21,6 +21,45 @@ export async function GET(
   }
 }
 
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    await requireAdmin();
+    const { id } = await params;
+    await ensureCloudSyncReady();
+
+    const body = await req.json();
+    const updated = dbService.updateExam(id, {
+      title: body.title,
+      description: body.description,
+      instructions: body.instructions,
+      duration_minutes: body.duration_minutes !== undefined ? Number(body.duration_minutes) : undefined,
+      negative_marking: body.negative_marking !== undefined ? Number(body.negative_marking) : undefined,
+      passing_percentage: body.passing_percentage !== undefined ? Number(body.passing_percentage) : undefined,
+      end_window: body.end_window
+    });
+
+    if (!updated) {
+      return NextResponse.json({ error: 'Exam not found' }, { status: 404 });
+    }
+
+    after(async () => {
+      try {
+        await syncDatabaseToCloud();
+      } catch (err) {
+        console.warn('[CLOUD SYNC (after)]:', err);
+      }
+    });
+
+    return NextResponse.json({ success: true, exam: updated });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error updating exam';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
