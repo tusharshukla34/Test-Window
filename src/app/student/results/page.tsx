@@ -29,6 +29,8 @@ interface StudentExamSubmissionItem {
     percentage: number | null;
     trainer_feedback: string | null;
     published_at: string | null;
+    is_absent?: number | boolean;
+    result_status?: string;
   } | null;
 }
 
@@ -103,6 +105,9 @@ export default function StudentResultsHubPage() {
             const isPublished = Boolean(attempt?.is_published);
             const isAwaiting = submission_state === 'awaiting_evaluation';
             const isEvaluatedNotPublished = isAwaiting && attempt?.evaluation_status === 'evaluated';
+            const isAbsent = Boolean(attempt?.is_absent || (attempt as any)?.result_status === 'absent_fail');
+            const passPct = (exam as any)?.passing_percentage ?? 40.0;
+            const isPass = !isAbsent && Number(attempt?.percentage || 0) >= passPct;
 
             return (
               <ClayCard
@@ -110,16 +115,26 @@ export default function StudentResultsHubPage() {
                 className="p-4 sm:p-5 flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow bg-white border border-slate-200/80"
               >
                 <div className="space-y-2">
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start justify-between gap-2 flex-wrap">
                     <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
                       Engineering Assessment
                     </span>
 
                     {/* Status Badges */}
                     {isPublished ? (
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1 shrink-0">
-                        <ShieldCheck size={12} className="text-emerald-600" /> Published
-                      </span>
+                      isAbsent ? (
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200 flex items-center gap-1 shrink-0">
+                          <AlertCircle size={12} className="text-rose-600" /> Failed (Absent)
+                        </span>
+                      ) : isPass ? (
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1 shrink-0">
+                          <CheckCircle2 size={12} className="text-emerald-600" /> PASSED
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200 flex items-center gap-1 shrink-0">
+                          <AlertCircle size={12} className="text-rose-600" /> FAILED
+                        </span>
+                      )
                     ) : isEvaluatedNotPublished ? (
                       <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1 shrink-0">
                         <Clock size={12} /> Evaluated
@@ -145,25 +160,54 @@ export default function StudentResultsHubPage() {
                     <span>Max {exam.max_marks} Pts</span>
                     <span>•</span>
                     <span>{exam.duration_minutes} Mins</span>
+                    <span>•</span>
+                    <span className="font-semibold text-slate-600">Pass Mark: {passPct}%</span>
                   </div>
                 </div>
 
                 {/* Score or Status Banner */}
-                {isPublished && attempt && attempt.total_score !== null ? (
-                  <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-3 flex items-center justify-between">
+                {isPublished && attempt && isAbsent ? (
+                  <div className="bg-rose-50/70 border border-rose-200 rounded-xl p-3 flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">
-                        Verified Score
+                      <span className="text-[10px] font-bold text-rose-700 uppercase tracking-wider block">
+                        Evaluation Result
                       </span>
-                      <span className="text-lg font-black text-emerald-950 font-mono">
+                      <span className="text-sm font-black text-rose-950 font-mono">
+                        0 / {exam.max_marks} (0%)
+                      </span>
+                      <span className="text-[10px] text-rose-600 block">Did not attempt before deadline</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                        ABSENT (FAIL)
+                      </span>
+                    </div>
+                  </div>
+                ) : isPublished && attempt && attempt.total_score !== null ? (
+                  <div className={`rounded-xl p-3 flex items-center justify-between border ${
+                    isPass ? 'bg-emerald-50/60 border-emerald-200' : 'bg-rose-50/60 border-rose-200'
+                  }`}>
+                    <div>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider block ${
+                        isPass ? 'text-emerald-700' : 'text-rose-700'
+                      }`}>
+                        Verified Score ({isPass ? 'PASSED' : 'FAILED'})
+                      </span>
+                      <span className={`text-lg font-black font-mono ${
+                        isPass ? 'text-emerald-950' : 'text-rose-950'
+                      }`}>
                         {attempt.total_score} / {exam.max_marks}
                       </span>
                     </div>
                     <div className="text-right">
-                      <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">
+                      <span className={`text-[10px] font-bold uppercase tracking-wider block ${
+                        isPass ? 'text-emerald-700' : 'text-rose-700'
+                      }`}>
                         Percentage
                       </span>
-                      <span className="text-lg font-black text-emerald-950">
+                      <span className={`text-lg font-black ${
+                        isPass ? 'text-emerald-950' : 'text-rose-950'
+                      }`}>
                         {attempt.percentage}%
                       </span>
                     </div>

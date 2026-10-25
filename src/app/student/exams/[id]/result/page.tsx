@@ -177,6 +177,10 @@ export default function StudentExamResultPage() {
   // STATE B: RESULT OFFICIALLY PUBLISHED BY TRAINER
   // Display official verified score card, teacher remarks & answers
   // -------------------------------------------------------------
+  const isAbsent = Boolean(attempt.is_absent || (attempt as any).result_status === 'absent_fail');
+  const passPct = (exam as any).passing_percentage ?? 40.0;
+  const isPass = !isAbsent && Number(attempt.percentage || 0) >= passPct;
+
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in py-2 sm:py-4">
       {/* Top Navigation */}
@@ -187,72 +191,131 @@ export default function StudentExamResultPage() {
         >
           <ArrowLeft size={16} /> Back to Results Hub
         </button>
-        <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1.5 self-start sm:self-auto">
-          <ShieldCheck size={14} className="text-emerald-600 shrink-0" /> Officially Published
-        </span>
+        {isAbsent ? (
+          <span className="text-xs font-bold text-rose-800 bg-rose-50 px-3 py-1 rounded-full border border-rose-200 flex items-center gap-1.5 self-start sm:self-auto">
+            <AlertCircle size={14} className="text-rose-600 shrink-0" /> Failed — Absent on Deadline
+          </span>
+        ) : isPass ? (
+          <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1.5 self-start sm:self-auto">
+            <CheckCircle2 size={14} className="text-emerald-600 shrink-0" /> RESULT: PASSED (≥{passPct}%)
+          </span>
+        ) : (
+          <span className="text-xs font-bold text-rose-800 bg-rose-50 px-3 py-1 rounded-full border border-rose-200 flex items-center gap-1.5 self-start sm:self-auto">
+            <AlertCircle size={14} className="text-rose-600 shrink-0" /> RESULT: FAILED (&lt;{passPct}%)
+          </span>
+        )}
       </div>
 
       {/* Hero Score Card */}
-      <ClayCard className="bg-gradient-to-r from-teal-900 via-teal-800 to-cyan-950 text-white p-5 sm:p-8 rounded-3xl shadow-xl shadow-teal-950/20 relative overflow-hidden">
+      <div className={`relative overflow-hidden rounded-3xl text-white p-6 sm:p-8 shadow-2xl border ${
+        isAbsent
+          ? 'bg-slate-900 bg-gradient-to-br from-slate-950 via-slate-900 to-rose-950/60 border-rose-900/60'
+          : isPass
+          ? 'bg-slate-900 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950/60 border-slate-800'
+          : 'bg-slate-900 bg-gradient-to-br from-slate-950 via-slate-900 to-rose-950/50 border-slate-800'
+      }`}>
         <div className="flex flex-col sm:flex-row items-center justify-between gap-5 sm:gap-6 relative z-10">
-          <div className="text-center sm:text-left space-y-1">
-            <span className="text-xs uppercase tracking-widest text-teal-300 font-bold">
-              Official Examination Result
-            </span>
-            <h1 className="text-xl sm:text-3xl font-black tracking-tight break-words">
+          <div className="text-center sm:text-left space-y-2">
+            <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
+              <span className={`text-xs uppercase tracking-widest font-extrabold flex items-center gap-1.5 ${
+                isAbsent ? 'text-rose-400' : isPass ? 'text-emerald-400' : 'text-rose-400'
+              }`}>
+                <Sparkles size={14} /> Official Examination Result
+              </span>
+              <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border ${
+                isAbsent
+                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                  : isPass
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+              }`}>
+                {isAbsent ? 'FAIL (ABSENT)' : isPass ? 'PASS' : 'FAIL'} • Passing Mark: {passPct}%
+              </span>
+            </div>
+
+            <h1 className="text-xl sm:text-3xl font-black text-white tracking-tight break-words">
               {exam.title}
             </h1>
-            <p className="text-xs text-teal-200">
-              Evaluated & Published on{' '}
-              {attempt.published_at
-                ? new Date(attempt.published_at).toLocaleString('en-IN', {
-                    timeZone: 'Asia/Kolkata',
-                    dateStyle: 'medium',
-                    timeStyle: 'short'
-                  })
-                : 'Recently'}
+            <p className="text-xs text-slate-300 font-medium">
+              {isAbsent
+                ? 'Recorded on deadline expiration as Absent (Unattempted)'
+                : `Evaluated & Published on ${
+                    attempt.published_at
+                      ? new Date(attempt.published_at).toLocaleString('en-IN', {
+                          timeZone: 'Asia/Kolkata',
+                          dateStyle: 'medium',
+                          timeStyle: 'short'
+                        })
+                      : 'Recently'
+                  }`}
             </p>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-white/20 text-center min-w-[140px] sm:min-w-[160px]">
-            <span className="text-[10px] sm:text-[11px] font-bold text-teal-200 uppercase tracking-wider block">Verified Score</span>
-            <span className="text-3xl sm:text-4xl font-black text-cyan-300 font-mono">
-              {attempt.total_score}
+          <div className="bg-slate-800/90 rounded-2xl p-4 sm:p-5 border border-slate-700 text-center min-w-[150px] sm:min-w-[170px] shadow-lg">
+            <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
+              {isAbsent ? 'Audit Score' : 'Verified Score'}
             </span>
-            <span className="text-xs text-teal-200 font-bold block">/ {exam.max_marks} Points</span>
+            <span className={`text-3xl sm:text-4xl font-black font-mono tracking-tight block my-0.5 ${
+              isAbsent ? 'text-rose-400' : isPass ? 'text-emerald-400' : 'text-rose-400'
+            }`}>
+              {attempt.total_score ?? 0}
+            </span>
+            <span className="text-xs text-slate-300 font-bold block">/ {exam.max_marks} Points</span>
           </div>
         </div>
 
-        {/* Trainer Feedback Banner if provided */}
-        {attempt.trainer_feedback && (
-          <div className="mt-4 sm:mt-5 pt-3.5 sm:pt-4 border-t border-white/15 text-xs text-teal-100 flex items-start gap-2 bg-white/5 rounded-xl p-3">
-            <FileText size={16} className="text-teal-300 shrink-0 mt-0.5" />
-            <div className="min-w-0">
-              <span className="font-bold text-white block">Trainer Remarks:</span>
-              <p className="text-teal-100 italic break-words">{attempt.trainer_feedback}</p>
+        {/* Absent Notification Notice */}
+        {isAbsent && (
+          <div className="mt-4 sm:mt-5 pt-3.5 sm:pt-4 border-t border-slate-800 text-xs text-rose-200 flex items-start gap-2.5 bg-rose-950/40 rounded-xl p-3.5 relative z-10 border border-rose-900/60">
+            <AlertCircle size={18} className="text-rose-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <strong className="text-white block font-bold">Unattempted Examination — Marked as Fail (Absent)</strong>
+              <p className="text-rose-200/90 leading-relaxed text-[11px]">
+                You did not attempt this online examination before the deadline set by Trainer Tushar Shukla. In accordance with examination regulations, your submission has been permanently recorded as <strong>FAIL (ABSENT)</strong> with 0 marks. This score card is stored permanently in your academic records.
+              </p>
             </div>
           </div>
         )}
-      </ClayCard>
+
+        {/* Trainer Feedback Banner if provided */}
+        {!isAbsent && attempt.trainer_feedback && (
+          <div className="mt-4 sm:mt-5 pt-3.5 sm:pt-4 border-t border-slate-800 text-xs text-slate-200 flex items-start gap-2 bg-slate-800/50 rounded-xl p-3 relative z-10">
+            <FileText size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <span className="font-bold text-white block">Trainer Remarks:</span>
+              <p className="text-slate-300 italic break-words">{attempt.trainer_feedback}</p>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Breakdown Metrics Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4">
-        <ClayCard className="p-3 sm:p-4 text-center">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Percentage</span>
-          <p className="text-xl sm:text-2xl font-black text-teal-700 mt-1">{attempt.percentage}%</p>
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3">
+        <ClayCard className="p-3 sm:p-4 text-center bg-white border border-slate-200">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Percentage</span>
+          <p className={`text-xl sm:text-2xl font-black mt-1 ${isPass ? 'text-emerald-700' : 'text-rose-700'}`}>
+            {attempt.percentage !== null && attempt.percentage !== undefined
+              ? attempt.percentage
+              : (exam.max_marks && exam.max_marks > 0 && typeof attempt.total_score === 'number' ? Number(((attempt.total_score / exam.max_marks) * 100).toFixed(1)) : 0)}%
+          </p>
         </ClayCard>
 
-        <ClayCard className="p-3 sm:p-4 text-center">
+        <ClayCard className="p-3 sm:p-4 text-center bg-white border border-slate-200">
           <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Correct</span>
-          <p className="text-xl sm:text-2xl font-black text-emerald-700 mt-1">{attempt.total_correct ?? '-'}</p>
+          <p className="text-xl sm:text-2xl font-black text-emerald-700 mt-1">{attempt.total_correct ?? 0}</p>
         </ClayCard>
 
-        <ClayCard className="p-3 sm:p-4 text-center">
+        <ClayCard className="p-3 sm:p-4 text-center bg-white border border-slate-200">
           <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider">Incorrect</span>
-          <p className="text-xl sm:text-2xl font-black text-rose-700 mt-1">{attempt.total_incorrect ?? '-'}</p>
+          <p className="text-xl sm:text-2xl font-black text-rose-700 mt-1">{attempt.total_incorrect ?? 0}</p>
         </ClayCard>
 
-        <ClayCard className="p-3 sm:p-4 text-center">
+        <ClayCard className="p-3 sm:p-4 text-center bg-white border border-slate-200">
+          <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Unattempted / Partial</span>
+          <p className="text-xl sm:text-2xl font-black text-amber-700 mt-1">{attempt.total_unattempted ?? 0}</p>
+        </ClayCard>
+
+        <ClayCard className="p-3 sm:p-4 text-center col-span-2 sm:col-span-1 bg-white border border-slate-200">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Time Spent</span>
           <p className="text-xl sm:text-2xl font-black text-slate-800 mt-1 font-mono">
             {Math.floor((attempt.time_spent_seconds || 0) / 60)}m {(attempt.time_spent_seconds || 0) % 60}s
@@ -300,28 +363,42 @@ export default function StudentExamResultPage() {
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       {q.manual_marks !== undefined && q.manual_marks !== null && (
-                        <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
+                        <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-300">
                           Awarded Marks: {q.manual_marks} / {q.marks}
                         </span>
                       )}
-                      {isUnattempted ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+                      {q.manual_marks !== undefined && q.manual_marks !== null ? (
+                        Number(q.manual_marks) >= Number(q.marks) ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                            <CheckCircle2 size={12} /> Correct (+{q.manual_marks})
+                          </span>
+                        ) : Number(q.manual_marks) <= 0 ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1">
+                            <AlertCircle size={12} /> Incorrect (0 pts)
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                            <Sparkles size={12} /> Partial Marks / Unattempted (+{q.manual_marks})
+                          </span>
+                        )
+                      ) : isUnattempted ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
                           Unattempted (0 pts)
                         </span>
                       ) : isMcq ? (
                         isCorrect ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center gap-1">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center gap-1">
                             <CheckCircle2 size={12} /> Correct (+{q.marks})
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-100 flex items-center gap-1">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-100 flex items-center gap-1">
                             <AlertCircle size={12} /> Incorrect {Number(q.negative_penalty || 0) > 0 ? `(-${q.negative_penalty})` : '(0 pts)'}
                           </span>
                         )
                       ) : (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 flex items-center gap-1">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 flex items-center gap-1">
                           <Sparkles size={12} /> Evaluated
                         </span>
                       )}

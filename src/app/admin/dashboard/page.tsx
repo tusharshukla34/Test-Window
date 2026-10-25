@@ -14,9 +14,58 @@ import {
   ArrowUpRight,
   TrendingUp,
   Layers,
-  RefreshCw
+  RefreshCw,
+  Award,
+  XCircle,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  ShieldCheck,
+  Search
 } from 'lucide-react';
 import { ClayCard, ClayButton } from '@/components/ui/ClayComponents';
+
+interface ExamPassFailStudent {
+  student_id: string;
+  name: string;
+  student_id_code: string;
+  batch_name: string;
+  total_score: number | null;
+  max_marks: number;
+  percentage: number | null;
+  is_absent: boolean;
+  result_status: 'pass' | 'fail' | 'absent_fail' | 'pending';
+  status: string;
+}
+
+interface ExamPassFailReport {
+  exam_id: string;
+  title: string;
+  is_deleted: boolean;
+  status: string;
+  duration_minutes: number;
+  max_marks: number;
+  passing_percentage: number;
+  deadline: string | null;
+  created_at: string;
+  batch_names: string[];
+  total_eligible: number;
+  total_attempted: number;
+  passed_count: number;
+  failed_count: number;
+  absent_count: number;
+  pass_rate: number;
+  students: ExamPassFailStudent[];
+}
+
+interface ExamPassFailSummary {
+  total_exams_conducted: number;
+  total_passed_students: number;
+  total_failed_students: number;
+  total_absent_students: number;
+  overall_pass_rate: number;
+  reports: ExamPassFailReport[];
+}
 
 interface AdminStats {
   total_students: number;
@@ -53,6 +102,7 @@ interface AdminStats {
     completion_pct: number;
     student_count: number;
   }[];
+  exam_pass_fail_summary?: ExamPassFailSummary;
 }
 
 let cachedAdminStats: AdminStats | null = null;
@@ -62,6 +112,9 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState<AdminStats | null>(cachedAdminStats);
   const [loading, setLoading] = useState(!cachedAdminStats);
   const [error, setError] = useState<string | null>(null);
+  const [expandedExamId, setExpandedExamId] = useState<string | null>(null);
+  const [reportFilter, setReportFilter] = useState<'all' | 'active' | 'archived'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchDashboard = () => {
     if (!cachedAdminStats) setLoading(true);
@@ -385,6 +438,363 @@ export default function AdminDashboardPage() {
           </div>
         )}
       </ClayCard>
+
+      {/* Fourth Row: All Examinations Conducted — Pass & Fail Audit Ledger */}
+      {(() => {
+        const passFailSummary = stats?.exam_pass_fail_summary;
+        const allReports = passFailSummary?.reports || [];
+        const filteredReports = allReports.filter(rep => {
+          if (reportFilter === 'active' && rep.is_deleted) return false;
+          if (reportFilter === 'archived' && !rep.is_deleted) return false;
+          if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            const matchTitle = rep.title.toLowerCase().includes(q);
+            const matchBatch = (rep.batch_names || []).some(b => b.toLowerCase().includes(q));
+            const matchStudent = (rep.students || []).some(s =>
+              s.name.toLowerCase().includes(q) || (s.student_id_code && s.student_id_code.toLowerCase().includes(q))
+            );
+            return matchTitle || matchBatch || matchStudent;
+          }
+          return true;
+        });
+
+        return (
+          <ClayCard className="space-y-5 border-indigo-100 bg-white shadow-sm">
+            {/* Header & Subtitle */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 rounded-lg bg-indigo-50 text-indigo-700">
+                    <Award size={18} />
+                  </span>
+                  <h3 className="font-extrabold text-slate-900 text-base">
+                    All Examinations Conducted — Pass & Fail Audit Report
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Permanent historical audit of all tests. Scorecards and pass/fail records are permanently stored even if an exam is removed or archived.
+                </p>
+              </div>
+
+              <ClayButton
+                variant="primary"
+                size="sm"
+                onClick={() => router.push('/admin/exams')}
+                className="self-start md:self-auto shrink-0 shadow-sm"
+              >
+                <Plus size={14} /> Schedule New Exam
+              </ClayButton>
+            </div>
+
+            {/* Overall KPI Statistics Banner */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-100">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 block">
+                  Exams Conducted
+                </span>
+                <span className="text-2xl font-black text-indigo-950 font-mono mt-0.5 block">
+                  {passFailSummary?.total_exams_conducted || 0}
+                </span>
+                <span className="text-[10px] text-indigo-600 font-semibold">Active & Archived Records</span>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-100">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 block">
+                  Total Students Passed
+                </span>
+                <span className="text-2xl font-black text-emerald-950 font-mono mt-0.5 block">
+                  {passFailSummary?.total_passed_students || 0}
+                </span>
+                <span className="text-[10px] text-emerald-700 font-semibold">Achieved Required Pass Mark</span>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-rose-50/70 border border-rose-100">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 block">
+                  Total Students Failed
+                </span>
+                <span className="text-2xl font-black text-rose-950 font-mono mt-0.5 block">
+                  {passFailSummary?.total_failed_students || 0}
+                </span>
+                <span className="text-[10px] text-rose-600 font-semibold">
+                  Includes {passFailSummary?.total_absent_students || 0} Absent / Unattempted
+                </span>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-100">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 block">
+                  Class Pass Rate
+                </span>
+                <span className="text-2xl font-black text-amber-950 font-mono mt-0.5 block">
+                  {passFailSummary?.overall_pass_rate || 0}%
+                </span>
+                <div className="w-full bg-amber-200/60 rounded-full h-1.5 mt-1.5 overflow-hidden">
+                  <div
+                    className="bg-amber-600 h-1.5 rounded-full"
+                    style={{ width: `${Math.min(100, passFailSummary?.overall_pass_rate || 0)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Filter and Search Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setReportFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                    reportFilter === 'all'
+                      ? 'bg-slate-900 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  All Exams ({allReports.length})
+                </button>
+                <button
+                  onClick={() => setReportFilter('active')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                    reportFilter === 'active'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Active ({allReports.filter(r => !r.is_deleted).length})
+                </button>
+                <button
+                  onClick={() => setReportFilter('archived')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                    reportFilter === 'archived'
+                      ? 'bg-slate-700 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Archived / Removed ({allReports.filter(r => r.is_deleted).length})
+                </button>
+              </div>
+
+              <div className="relative w-full sm:w-64">
+                <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Filter by exam, batch, or student..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="clay-input w-full pl-8 pr-3 py-1.5 text-xs text-slate-800"
+                />
+              </div>
+            </div>
+
+            {/* Exam Reports List */}
+            {filteredReports.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 text-xs">
+                No conducted examination records found matching your filter.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredReports.map(rep => {
+                  const isExpanded = expandedExamId === rep.exam_id;
+                  const isArchived = Boolean(rep.is_deleted);
+                  const hasDeadline = Boolean(rep.deadline);
+                  const isDeadlinePassed = hasDeadline && new Date(rep.deadline!) <= new Date();
+
+                  return (
+                    <div
+                      key={rep.exam_id}
+                      className={`rounded-2xl border transition overflow-hidden ${
+                        isArchived
+                          ? 'border-dashed border-slate-300 bg-slate-50/50'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      {/* Main Summary Header */}
+                      <div className="p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                        <div className="space-y-2 flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-extrabold text-slate-900 text-sm sm:text-base break-words">
+                              {rep.title}
+                            </h4>
+                            {isArchived ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">
+                                Archived Record
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Active Test
+                              </span>
+                            )}
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700">
+                              Pass Mark: ≥{rep.passing_percentage}%
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
+                            <span>Batches: <strong className="text-slate-700 font-semibold">{rep.batch_names.join(', ')}</strong></span>
+                            <span>•</span>
+                            <span>Duration: <strong className="text-slate-700 font-mono">{rep.duration_minutes}m</strong></span>
+                            <span>•</span>
+                            <span>Max Marks: <strong className="text-slate-700 font-mono">{rep.max_marks}</strong></span>
+                            {hasDeadline && (
+                              <>
+                                <span>•</span>
+                                <span className={isDeadlinePassed ? 'text-rose-600 font-semibold' : 'text-slate-600'}>
+                                  Deadline: {new Date(rep.deadline!).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                  {isDeadlinePassed ? ' (Elapsed)' : ''}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Metric Badges */}
+                        <div className="flex items-center gap-2 sm:gap-3 flex-wrap lg:flex-nowrap shrink-0">
+                          <div className="px-3 py-1.5 rounded-xl bg-slate-100 text-center min-w-[70px]">
+                            <span className="text-[9px] font-bold uppercase text-slate-500 block">Enrolled</span>
+                            <span className="text-sm font-black text-slate-800 font-mono">{rep.total_eligible}</span>
+                          </div>
+
+                          <div className="px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-100 text-center min-w-[70px]">
+                            <span className="text-[9px] font-bold uppercase text-emerald-700 block">Passed</span>
+                            <span className="text-sm font-black text-emerald-800 font-mono">{rep.passed_count}</span>
+                          </div>
+
+                          <div className="px-3 py-1.5 rounded-xl bg-rose-50 border border-rose-100 text-center min-w-[70px]">
+                            <span className="text-[9px] font-bold uppercase text-rose-700 block">Failed</span>
+                            <span className="text-sm font-black text-rose-800 font-mono">
+                              {rep.failed_count}
+                            </span>
+                            {rep.absent_count > 0 && (
+                              <span className="text-[8px] text-rose-600 font-semibold block">
+                                ({rep.absent_count} absent)
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="px-3 py-1.5 rounded-xl bg-indigo-50 border border-indigo-100 text-center min-w-[70px]">
+                            <span className="text-[9px] font-bold uppercase text-indigo-700 block">Pass Rate</span>
+                            <span className="text-sm font-black text-indigo-800 font-mono">{rep.pass_rate}%</span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 pl-2">
+                            <button
+                              onClick={() => router.push(`/admin/exams/${rep.exam_id}/analytics`)}
+                              className="p-2 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition"
+                              title="Open Full Analytics & Ranks"
+                            >
+                              <ExternalLink size={16} />
+                            </button>
+                            <button
+                              onClick={() => setExpandedExamId(isExpanded ? null : rep.exam_id)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                                isExpanded
+                                  ? 'bg-slate-900 text-white'
+                                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                              }`}
+                            >
+                              {isExpanded ? (
+                                <>Hide Roster <ChevronUp size={14} /></>
+                              ) : (
+                                <>View Students ({rep.students.length}) <ChevronDown size={14} /></>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Expanded Student Pass/Fail Table */}
+                      {isExpanded && (
+                        <div className="border-t border-slate-200 bg-slate-50/70 p-4 sm:p-5 animate-in fade-in space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                              <ShieldCheck size={14} className="text-indigo-600" /> Student Examination Audit Ledger ({rep.students.length} Total Cohort Students)
+                            </h5>
+                            <span className="text-[11px] text-slate-500">
+                              Required Pass Score: {((rep.max_marks * rep.passing_percentage) / 100).toFixed(1)} marks ({rep.passing_percentage}%)
+                            </span>
+                          </div>
+
+                          {rep.students.length === 0 ? (
+                            <div className="py-6 text-center text-slate-400 text-xs">
+                              No students are currently enrolled in the assigned batches.
+                            </div>
+                          ) : (
+                            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                              <table className="w-full text-left border-collapse text-xs">
+                                <thead>
+                                  <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-600 font-bold text-[11px]">
+                                    <th className="py-2.5 px-3">Student Name</th>
+                                    <th className="py-2.5 px-3">Student ID</th>
+                                    <th className="py-2.5 px-3">Cohort / Batch</th>
+                                    <th className="py-2.5 px-3 text-right">Score</th>
+                                    <th className="py-2.5 px-3 text-right">Percentage</th>
+                                    <th className="py-2.5 px-3 text-center">Audit Result</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                  {rep.students.map(stu => {
+                                    return (
+                                      <tr key={stu.student_id} className="hover:bg-slate-50 transition">
+                                        <td className="py-2.5 px-3 font-bold text-slate-900">
+                                          {stu.name}
+                                        </td>
+                                        <td className="py-2.5 px-3 font-mono text-slate-500 text-[11px]">
+                                          {stu.student_id_code || '—'}
+                                        </td>
+                                        <td className="py-2.5 px-3 text-slate-600">
+                                          {stu.batch_name}
+                                        </td>
+                                        <td className="py-2.5 px-3 text-right font-mono font-bold">
+                                          {stu.total_score !== null ? (
+                                            <span className={stu.result_status === 'pass' ? 'text-emerald-700' : 'text-rose-700'}>
+                                              {stu.total_score} / {rep.max_marks}
+                                            </span>
+                                          ) : (
+                                            <span className="text-slate-400">—</span>
+                                          )}
+                                        </td>
+                                        <td className="py-2.5 px-3 text-right font-mono font-bold">
+                                          {stu.percentage !== null ? (
+                                            <span className={stu.result_status === 'pass' ? 'text-emerald-700' : 'text-rose-700'}>
+                                              {stu.percentage}%
+                                            </span>
+                                          ) : (
+                                            <span className="text-slate-400">—</span>
+                                          )}
+                                        </td>
+                                        <td className="py-2.5 px-3 flex justify-center">
+                                          {stu.result_status === 'pass' ? (
+                                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                                              <CheckCircle2 size={11} /> PASSED
+                                            </span>
+                                          ) : stu.result_status === 'absent_fail' || stu.is_absent ? (
+                                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1" title="Did not attempt test before deadline">
+                                              <AlertCircle size={11} /> FAILED (ABSENT)
+                                            </span>
+                                          ) : stu.result_status === 'fail' ? (
+                                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1">
+                                              <XCircle size={11} /> FAILED
+                                            </span>
+                                          ) : (
+                                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 flex items-center gap-1">
+                                              <Clock size={11} /> Not Started
+                                            </span>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </ClayCard>
+        );
+      })()}
     </div>
   );
 }

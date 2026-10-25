@@ -175,6 +175,8 @@ export interface Exam {
   result_release_policy: 'immediate' | 'manual' | 'after_deadline';
   start_window?: string | null;
   end_window?: string | null;
+  passing_percentage?: number;
+  is_deleted?: number | boolean;
   created_by?: string | null;
   created_at: string;
   updated_at: string;
@@ -215,6 +217,13 @@ export interface ExamAttempt {
   evaluation_history?: string | null;
   fullscreen_exit_count?: number;
   proctoring_event_log?: string | null;
+  is_absent?: number | boolean;
+  result_status?: 'pass' | 'fail' | 'absent_fail' | 'pending';
+  exam_title?: string;
+  exam_max_marks?: number;
+  exam_duration_minutes?: number;
+  exam_passing_percentage?: number;
+  batch_name?: string;
   exam?: Exam;
   student?: UserProfile;
 }

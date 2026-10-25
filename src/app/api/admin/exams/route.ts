@@ -5,11 +5,13 @@ import { dbService, ensureCloudSyncReady, syncDatabaseToCloud } from '@/lib/db/d
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     await requireAdmin();
     await ensureCloudSyncReady();
-    const exams = dbService.getAllExams();
+    const url = new URL(req.url);
+    const includeDeleted = url.searchParams.get('includeDeleted') === 'true';
+    const exams = dbService.getAllExams({ includeDeleted });
     return NextResponse.json(exams, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -34,6 +36,9 @@ export async function POST(req: NextRequest) {
       duration_minutes,
       negative_marking,
       allow_pausing,
+      start_window,
+      end_window,
+      passing_percentage,
       batch_ids,
       question_ids
     } = body;
@@ -49,6 +54,9 @@ export async function POST(req: NextRequest) {
       duration_minutes: Number(duration_minutes) || 20,
       negative_marking: negative_marking !== undefined && negative_marking !== null ? Number(negative_marking) : 0.0,
       allow_pausing: Boolean(allow_pausing),
+      start_window: start_window || null,
+      end_window: end_window || null,
+      passing_percentage: passing_percentage !== undefined && passing_percentage !== null ? Number(passing_percentage) : 40.0,
       batch_ids,
       question_ids,
       created_by: session.userId
@@ -57,6 +65,9 @@ export async function POST(req: NextRequest) {
     // Notify students in assigned batches and collect recipient emails
     const studentRecipientsMap = new Map<string, { name: string; email: string; student_id?: string | null }>();
     const batchNamesList: string[] = [];
+    const deadlineNote = end_window
+      ? ` • Deadline: ${new Date(end_window).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} (Unattempted tests marked as Fail)`
+      : '';
 
     for (const bId of batch_ids) {
       const batchData = dbService.getBatchById(bId);
@@ -67,7 +78,7 @@ export async function POST(req: NextRequest) {
             dbService.createNotification({
               user_id: stu.id,
               title: 'New Online Examination Scheduled',
-              message: `Trainer Tushar Shukla scheduled "${title}" (${duration_minutes} mins) for your batch.`,
+              message: `Trainer Tushar Shukla scheduled "${title}" (${duration_minutes} mins) for your batch.${deadlineNote}`,
               type: 'exam',
               link: `/student/exams/${exam.id}/instructions`
             });

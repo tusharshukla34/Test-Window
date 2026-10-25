@@ -107,6 +107,27 @@ export function ensureAllMigrations(targetDb: InstanceType<typeof Database> = db
       }
     }
 
+    // exams migrations
+    const exCols = getColumns('exams');
+    if (exCols.size > 0) {
+      if (!exCols.has('is_deleted')) {
+        targetDb.exec(`ALTER TABLE exams ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0`);
+        changed = true;
+      }
+      if (!exCols.has('passing_percentage')) {
+        targetDb.exec(`ALTER TABLE exams ADD COLUMN passing_percentage REAL NOT NULL DEFAULT 40.0`);
+        changed = true;
+      }
+      if (!exCols.has('start_window')) {
+        targetDb.exec(`ALTER TABLE exams ADD COLUMN start_window TEXT`);
+        changed = true;
+      }
+      if (!exCols.has('end_window')) {
+        targetDb.exec(`ALTER TABLE exams ADD COLUMN end_window TEXT`);
+        changed = true;
+      }
+    }
+
     // exam_attempts migrations
     const eaCols = getColumns('exam_attempts');
     if (eaCols.size > 0) {
@@ -150,6 +171,27 @@ export function ensureAllMigrations(targetDb: InstanceType<typeof Database> = db
         targetDb.exec(`ALTER TABLE exam_attempts ADD COLUMN proctoring_event_log TEXT DEFAULT '[]'`);
         changed = true;
       }
+      if (!eaCols.has('is_absent')) {
+        try { targetDb.exec(`ALTER TABLE exam_attempts ADD COLUMN is_absent INTEGER NOT NULL DEFAULT 0`); changed = true; } catch {}
+      }
+      if (!eaCols.has('result_status')) {
+        try { targetDb.exec(`ALTER TABLE exam_attempts ADD COLUMN result_status TEXT DEFAULT 'pending'`); changed = true; } catch {}
+      }
+      if (!eaCols.has('exam_title')) {
+        try { targetDb.exec(`ALTER TABLE exam_attempts ADD COLUMN exam_title TEXT`); changed = true; } catch {}
+      }
+      if (!eaCols.has('exam_max_marks')) {
+        try { targetDb.exec(`ALTER TABLE exam_attempts ADD COLUMN exam_max_marks REAL`); changed = true; } catch {}
+      }
+      if (!eaCols.has('exam_duration_minutes')) {
+        try { targetDb.exec(`ALTER TABLE exam_attempts ADD COLUMN exam_duration_minutes INTEGER`); changed = true; } catch {}
+      }
+      if (!eaCols.has('exam_passing_percentage')) {
+        try { targetDb.exec(`ALTER TABLE exam_attempts ADD COLUMN exam_passing_percentage REAL DEFAULT 40.0`); changed = true; } catch {}
+      }
+      if (!eaCols.has('batch_name')) {
+        try { targetDb.exec(`ALTER TABLE exam_attempts ADD COLUMN batch_name TEXT`); changed = true; } catch {}
+      }
     }
 
     // attempt_responses migrations
@@ -175,6 +217,115 @@ export function ensureAllMigrations(targetDb: InstanceType<typeof Database> = db
         targetDb.exec(`ALTER TABLE attempt_responses ADD COLUMN submitted_file_name TEXT`);
         changed = true;
       }
+    }
+
+    // Reconcile and auto-heal exam max_marks and attempt percentages
+    try {
+      const examsToCheck = targetDb.prepare(`SELECT id, max_marks, total_questions FROM exams`).all() as { id: string; max_marks: number; total_questions: number }[];
+      for (const ex of examsToCheck) {
+        const qSum = targetDb.prepare(`
+          SELECT COALESCE(SUM(q.marks), 0) as total_marks, COUNT(q.id) as q_count
+          FROM exam_questions eq
+          JOIN question_bank q ON eq.question_id = q.id
+          WHERE eq.exam_id = ?
+        `).get(ex.id) as { total_marks: number; q_count: number };
+
+        if (qSum.total_marks > 0 && Math.abs(ex.max_marks - qSum.total_marks) > 0.001) {
+          const marksPerQ = qSum.q_count > 0 ? Number((qSum.total_marks / qSum.q_count).toFixed(2)) : 1.0;
+          targetDb.prepare(`
+            UPDATE exams 
+            SET max_marks = ?, marks_per_question = ? 
+            WHERE id = ?
+          `).run(qSum.total_marks, marksPerQ, ex.id);
+
+          targetDb.prepare(`
+            UPDATE exam_attempts
+            SET percentage = ROUND((total_score / ?) * 100, 1)
+            WHERE exam_id = ? AND total_score IS NOT NULL
+          `).run(qSum.total_marks, ex.id);
+
+          changed = true;
+        }
+      }
+    } catch (examHealErr) {
+      console.warn('[ensureAllMigrations exam mark healing warning]:', examHealErr);
+    }
+
+    // Reconcile and auto-heal total_correct, total_incorrect, total_unattempted for all evaluated attempts
+    try {
+      const evaluatedAttempts = targetDb.prepare(`
+        SELECT id FROM exam_attempts 
+        WHERE evaluation_status IN ('evaluated', 'published') OR status = 'completed'
+      `).all() as { id: string }[];
+
+      for (const att of evaluatedAttempts) {
+        const resps = targetDb.prepare(`
+          SELECT ar.manual_marks, ar.selected_option_id, q.marks as q_marks, q.correct_option_id, q.question_type
+          FROM attempt_responses ar
+          JOIN question_bank q ON ar.question_id = q.id
+          WHERE ar.attempt_id = ?
+        `).all(att.id) as any[];
+
+        let totalCorrect = 0;
+        let totalIncorrect = 0;
+        let totalUnattempted = 0;
+
+        for (const r of resps) {
+          const maxQMarks = Number(r.q_marks || 1);
+          if (r.manual_marks !== null && r.manual_marks !== undefined) {
+            const m = Number(r.manual_marks);
+            if (m >= maxQMarks) {
+              totalCorrect++;
+            } else if (m <= 0) {
+              totalIncorrect++;
+            } else {
+              totalUnattempted++;
+            }
+          } else if (r.question_type === 'mcq') {
+            if (!r.selected_option_id) {
+              totalUnattempted++;
+            } else if (r.selected_option_id === r.correct_option_id) {
+              totalCorrect++;
+            } else {
+              totalIncorrect++;
+            }
+          } else {
+            totalUnattempted++;
+          }
+        }
+
+        targetDb.prepare(`
+          UPDATE exam_attempts
+          SET total_correct = ?, total_incorrect = ?, total_unattempted = ?
+          WHERE id = ?
+        `).run(totalCorrect, totalIncorrect, totalUnattempted, att.id);
+      }
+    } catch (metricHealErr) {
+      console.warn('[ensureAllMigrations attempt metrics healing warning]:', metricHealErr);
+    }
+
+    // Backfill exam snapshots and result_status on exam_attempts so scorecards are permanent
+    try {
+      targetDb.prepare(`
+        UPDATE exam_attempts
+        SET exam_title = (SELECT title FROM exams WHERE exams.id = exam_attempts.exam_id),
+            exam_max_marks = (SELECT max_marks FROM exams WHERE exams.id = exam_attempts.exam_id),
+            exam_duration_minutes = (SELECT duration_minutes FROM exams WHERE exams.id = exam_attempts.exam_id),
+            exam_passing_percentage = COALESCE((SELECT passing_percentage FROM exams WHERE exams.id = exam_attempts.exam_id), 40.0)
+        WHERE (exam_title IS NULL OR exam_max_marks IS NULL) AND exam_id IN (SELECT id FROM exams)
+      `).run();
+
+      targetDb.prepare(`
+        UPDATE exam_attempts
+        SET result_status = CASE 
+          WHEN is_absent = 1 THEN 'absent_fail'
+          WHEN percentage >= COALESCE(exam_passing_percentage, 40.0) THEN 'pass'
+          ELSE 'fail'
+        END
+        WHERE (result_status IS NULL OR result_status = 'pending') AND (status = 'completed' OR is_published = 1)
+      `).run();
+    } catch (backfillErr) {
+      console.warn('[ensureAllMigrations snapshot backfill warning]:', backfillErr);
     }
   } catch (err) {
     console.warn('[ensureAllMigrations warning]:', err);
@@ -389,6 +540,8 @@ function initSchema() {
       result_release_policy TEXT NOT NULL DEFAULT 'immediate' CHECK (result_release_policy IN ('immediate', 'manual', 'after_deadline')),
       start_window TEXT,
       end_window TEXT,
+      passing_percentage REAL NOT NULL DEFAULT 40.0,
+      is_deleted INTEGER NOT NULL DEFAULT 0,
       created_by TEXT REFERENCES profiles(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -461,6 +614,13 @@ function initSchema() {
       evaluation_history TEXT DEFAULT '[]',
       fullscreen_exit_count INTEGER NOT NULL DEFAULT 0,
       proctoring_event_log TEXT DEFAULT '[]',
+      is_absent INTEGER NOT NULL DEFAULT 0,
+      result_status TEXT DEFAULT 'pending',
+      exam_title TEXT,
+      exam_max_marks REAL,
+      exam_duration_minutes INTEGER,
+      exam_passing_percentage REAL DEFAULT 40.0,
+      batch_name TEXT,
       UNIQUE (exam_id, student_id)
     );
 
@@ -1440,8 +1600,9 @@ export const dbService = {
   },
 
   // Exams
-  getAllExams(): (Exam & { recipient_batch_names: string[]; attempt_count: number })[] {
-    const exams = db.prepare('SELECT * FROM exams ORDER BY created_at DESC').all() as Exam[];
+  getAllExams(options?: { includeDeleted?: boolean }): (Exam & { recipient_batch_names: string[]; attempt_count: number })[] {
+    const where = options?.includeDeleted ? '' : 'WHERE is_deleted = 0';
+    const exams = db.prepare(`SELECT * FROM exams ${where} ORDER BY created_at DESC`).all() as Exam[];
     const getBatches = db.prepare(`
       SELECT b.name FROM batches b
       JOIN exam_batches eb ON b.id = eb.batch_id
@@ -1460,7 +1621,7 @@ export const dbService = {
     const studentBatches = this.getStudentBatches(studentId);
     const studentBatchIds = new Set(studentBatches.map(b => b.id));
 
-    const exams = db.prepare(`SELECT * FROM exams WHERE status = 'published' ORDER BY created_at DESC`).all() as Exam[];
+    const exams = db.prepare(`SELECT * FROM exams WHERE status = 'published' AND is_deleted = 0 ORDER BY created_at DESC`).all() as Exam[];
     const getExamBatchesStmt = db.prepare('SELECT batch_id FROM exam_batches WHERE exam_id = ?');
     const getAttemptStmt = db.prepare('SELECT * FROM exam_attempts WHERE exam_id = ? AND student_id = ?');
 
@@ -1511,6 +1672,170 @@ export const dbService = {
     };
   },
 
+  // ============================================================================
+  // EXAM DEADLINE & ABSENT STUDENT EVALUATION ENGINE
+  // Authoritative server-side evaluation: Students who missed deadline are marked FAIL
+  // Score cards are generated and stored permanently for both trainer and student
+  // ============================================================================
+  processExamDeadlines(specificExamId?: string): { processed_exams: number; auto_failed_count: number } {
+    let autoFailedCount = 0;
+    let processedExams = 0;
+
+    try {
+      let targetExams: Exam[] = [];
+      if (specificExamId) {
+        const exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(specificExamId) as Exam | undefined;
+        if (exam) targetExams = [exam];
+      } else {
+        targetExams = db.prepare(`
+          SELECT * FROM exams 
+          WHERE is_deleted = 0 
+            AND status = 'published' 
+            AND end_window IS NOT NULL 
+            AND end_window != '' 
+            AND end_window <= datetime('now')
+        `).all() as Exam[];
+      }
+
+      for (const ex of targetExams) {
+        processedExams++;
+        const passPct = ex.passing_percentage ?? 40.0;
+
+        // 1. Get all batches assigned to this exam
+        const examBatches = db.prepare('SELECT batch_id FROM exam_batches WHERE exam_id = ?').all(ex.id) as { batch_id: string }[];
+        if (examBatches.length === 0) continue;
+
+        const batchPlaceholders = examBatches.map(() => '?').join(',');
+        const batchIds = examBatches.map(b => b.batch_id);
+
+        // 2. Fetch all enrolled students in these target batches
+        const enrolledStudents = db.prepare(`
+          SELECT DISTINCT p.id, p.name, p.student_id, p.email, bm.batch_id, b.name as batch_name
+          FROM batch_memberships bm
+          JOIN profiles p ON bm.user_id = p.id
+          LEFT JOIN batches b ON bm.batch_id = b.id
+          WHERE bm.batch_id IN (${batchPlaceholders}) AND p.role = 'student' AND p.status = 'active'
+        `).all(...batchIds) as { id: string; name: string; student_id?: string; email?: string; batch_id: string; batch_name: string }[];
+
+        for (const stu of enrolledStudents) {
+          const existingAtt = db.prepare(`
+            SELECT * FROM exam_attempts 
+            WHERE exam_id = ? AND (student_id = ? OR student_id = ?)
+          `).get(ex.id, stu.id, stu.student_id || '') as ExamAttempt | undefined;
+
+          if (!existingAtt) {
+            // Student did not attempt the exam before deadline -> Mark as FAIL (Absent)
+            const attemptId = `att-absent-${ex.id.slice(0, 8)}-${stu.id.slice(0, 8)}-${Date.now().toString(36)}`;
+            const deadlineTime = ex.end_window || new Date().toISOString();
+
+            db.prepare(`
+              INSERT INTO exam_attempts (
+                id, exam_id, student_id, batch_id, status, started_at,
+                authoritative_deadline, submitted_at, time_spent_seconds, is_paused, pause_count,
+                total_score, total_correct, total_incorrect, total_unattempted,
+                percentage, accuracy, rank, evaluation_status, is_published,
+                published_at, trainer_feedback, is_absent, result_status,
+                exam_title, exam_max_marks, exam_duration_minutes, exam_passing_percentage, batch_name
+              ) VALUES (
+                ?, ?, ?, ?, 'completed', ?,
+                ?, ?, 0, 0, 0,
+                0.0, 0, 0, ?,
+                0.0, 0.0, null, 'evaluated', 1,
+                ?, 'Absent — Student did not attempt this exam before the scheduled deadline. Officially marked as Failed (0 marks).',
+                1, 'absent_fail',
+                ?, ?, ?, ?, ?
+              )
+            `).run(
+              attemptId,
+              ex.id,
+              stu.id,
+              stu.batch_id || null,
+              deadlineTime,
+              deadlineTime,
+              deadlineTime,
+              ex.total_questions || 0,
+              new Date().toISOString(),
+              ex.title,
+              ex.max_marks,
+              ex.duration_minutes,
+              passPct,
+              stu.batch_name || 'Enrolled Batch'
+            );
+
+            // Pre-seed blank attempt responses so question breakdowns remain clean
+            try {
+              const examQRows = db.prepare('SELECT question_id FROM exam_questions WHERE exam_id = ? ORDER BY question_order ASC').all(ex.id) as { question_id: string }[];
+              const insResp = db.prepare(`
+                INSERT INTO attempt_responses (id, attempt_id, question_id, selected_option_id, is_marked_for_review, is_visited, manual_marks)
+                VALUES (?, ?, ?, null, 0, 0, 0.0)
+              `);
+              for (let i = 0; i < examQRows.length; i++) {
+                insResp.run(`resp-${attemptId}-${i + 1}`, attemptId, examQRows[i].question_id);
+              }
+            } catch {}
+
+            // Send instant score card notification to student
+            try {
+              this.createNotification({
+                user_id: stu.id,
+                title: `Exam Score Card: ${ex.title} — Failed (Absent)`,
+                message: `The exam deadline for "${ex.title}" has passed. Because you did not attempt the exam, your score card has been generated as Fail (0/${ex.max_marks}).`,
+                type: 'exam',
+                link: `/student/exams/${ex.id}/result`
+              });
+            } catch {}
+
+            autoFailedCount++;
+          } else if (existingAtt.status === 'in_progress') {
+            // Student started but abandoned / didn't submit before deadline
+            try {
+              this.finalizeExamAttempt(existingAtt.id, stu.id);
+              const finalizedAtt = db.prepare('SELECT * FROM exam_attempts WHERE id = ?').get(existingAtt.id) as ExamAttempt | undefined;
+              if (finalizedAtt) {
+                const isPass = Number(finalizedAtt.percentage || 0) >= passPct;
+                db.prepare(`
+                  UPDATE exam_attempts
+                  SET evaluation_status = 'evaluated',
+                      is_published = 1,
+                      published_at = COALESCE(published_at, datetime('now')),
+                      result_status = ?,
+                      exam_title = COALESCE(exam_title, ?),
+                      exam_max_marks = COALESCE(exam_max_marks, ?),
+                      exam_duration_minutes = COALESCE(exam_duration_minutes, ?),
+                      exam_passing_percentage = COALESCE(exam_passing_percentage, ?),
+                      batch_name = COALESCE(batch_name, ?)
+                  WHERE id = ?
+                `).run(isPass ? 'pass' : 'fail', ex.title, ex.max_marks, ex.duration_minutes, passPct, stu.batch_name || null, existingAtt.id);
+              }
+            } catch (finErr) {
+              console.warn('[processExamDeadlines in_progress finalize warning]:', finErr);
+            }
+          } else if (existingAtt.status === 'completed') {
+            // Ensure snapshot metadata and result_status are populated
+            const isPass = existingAtt.is_absent ? false : (Number(existingAtt.percentage || 0) >= passPct);
+            const resStatus = existingAtt.is_absent ? 'absent_fail' : (isPass ? 'pass' : 'fail');
+            db.prepare(`
+              UPDATE exam_attempts
+              SET result_status = COALESCE(result_status, ?),
+                  exam_title = COALESCE(exam_title, ?),
+                  exam_max_marks = COALESCE(exam_max_marks, ?),
+                  exam_duration_minutes = COALESCE(exam_duration_minutes, ?),
+                  exam_passing_percentage = COALESCE(exam_passing_percentage, ?),
+                  batch_name = COALESCE(batch_name, ?),
+                  is_published = 1,
+                  published_at = COALESCE(published_at, datetime('now'))
+              WHERE id = ?
+            `).run(resStatus, ex.title, ex.max_marks, ex.duration_minutes, passPct, stu.batch_name || null, existingAtt.id);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[processExamDeadlines error]:', err);
+    }
+
+    return { processed_exams: processedExams, auto_failed_count: autoFailedCount };
+  },
+
   createExam(data: {
     title: string;
     description?: string;
@@ -1521,17 +1846,29 @@ export const dbService = {
     batch_ids: string[];
     question_ids: string[];
     created_by?: string;
+    start_window?: string | null;
+    end_window?: string | null;
+    passing_percentage?: number;
   }): Exam {
     const id = `exam-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
     const totalQ = data.question_ids.length;
-    const maxMarks = totalQ * 1.0;
+    let maxMarks = 0;
+    if (totalQ > 0) {
+      const placeholders = data.question_ids.map(() => '?').join(',');
+      const sumRow = db.prepare(`SELECT COALESCE(SUM(marks), 0) as total FROM question_bank WHERE id IN (${placeholders})`).get(...data.question_ids) as { total: number };
+      maxMarks = sumRow.total > 0 ? sumRow.total : totalQ * 1.0;
+    } else {
+      maxMarks = 0;
+    }
+    const marksPerQuestion = totalQ > 0 ? Number((maxMarks / totalQ).toFixed(2)) : 1.0;
+    const passingPct = data.passing_percentage !== undefined && data.passing_percentage !== null ? Number(data.passing_percentage) : 40.0;
 
     db.prepare(`
       INSERT INTO exams (
         id, title, description, instructions, duration_minutes, total_questions,
         max_marks, marks_per_question, negative_marking, unattempted_deduction,
-        allow_pausing, max_pauses, status, result_release_policy, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 1.0, ?, 0.0, ?, 0, 'published', 'immediate', ?)
+        allow_pausing, max_pauses, status, result_release_policy, start_window, end_window, passing_percentage, is_deleted, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0.0, ?, 0, 'published', 'immediate', ?, ?, ?, 0, ?)
     `).run(
       id,
       data.title,
@@ -1540,8 +1877,12 @@ export const dbService = {
       data.duration_minutes,
       totalQ,
       maxMarks,
+      marksPerQuestion,
       data.negative_marking,
       data.allow_pausing ? 1 : 0,
+      data.start_window || new Date().toISOString(),
+      data.end_window || null,
+      passingPct,
       data.created_by || null
     );
 
@@ -1559,14 +1900,34 @@ export const dbService = {
   },
 
   deleteExam(id: string): boolean {
-    const attempts = db.prepare('SELECT id FROM exam_attempts WHERE exam_id = ?').all(id) as { id: string }[];
-    for (const att of attempts) {
-      db.prepare('DELETE FROM attempt_responses WHERE attempt_id = ?').run(att.id);
+    // 1. Process deadline for this exam so unattempted students are marked absent/failed
+    try {
+      this.processExamDeadlines(id);
+    } catch (procErr) {
+      console.warn('[deleteExam processExamDeadlines warning]:', procErr);
     }
-    db.prepare('DELETE FROM exam_attempts WHERE exam_id = ?').run(id);
-    db.prepare('DELETE FROM exam_batches WHERE exam_id = ?').run(id);
-    db.prepare('DELETE FROM exam_questions WHERE exam_id = ?').run(id);
-    const res = db.prepare('DELETE FROM exams WHERE id = ?').run(id);
+
+    // 2. Snapshot exam title, max marks, duration into attempts so they are permanently preserved
+    const exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(id) as Exam | undefined;
+    if (exam) {
+      db.prepare(`
+        UPDATE exam_attempts
+        SET exam_title = COALESCE(exam_title, ?),
+            exam_max_marks = COALESCE(exam_max_marks, ?),
+            exam_duration_minutes = COALESCE(exam_duration_minutes, ?),
+            exam_passing_percentage = COALESCE(exam_passing_percentage, ?)
+        WHERE exam_id = ?
+      `).run(exam.title, exam.max_marks, exam.duration_minutes, exam.passing_percentage || 40.0, id);
+    }
+
+    // 3. Soft-delete the exam: mark is_deleted = 1 and status = 'archived'
+    // Score cards, attempts, and trainer reports are PERMANENTLY preserved!
+    const res = db.prepare(`
+      UPDATE exams 
+      SET is_deleted = 1, status = 'archived', updated_at = datetime('now') 
+      WHERE id = ?
+    `).run(id);
+
     return res.changes > 0;
   },
 
@@ -1577,7 +1938,18 @@ export const dbService = {
   getStudentExamEligibility(examId: string, studentId: string): { is_eligible: boolean; reason?: string; attempt?: ExamAttempt } {
     const exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(examId) as Exam;
     if (!exam) return { is_eligible: false, reason: 'Examination not found' };
-    if (exam.status !== 'published') return { is_eligible: false, reason: 'Examination is not currently published' };
+    if (exam.status !== 'published' || exam.is_deleted) return { is_eligible: false, reason: 'This examination is not currently active.' };
+
+    const now = new Date();
+    if (exam.start_window && new Date(exam.start_window) > now) {
+      return { is_eligible: false, reason: `Examination is not yet open. Scheduled to open on ${new Date(exam.start_window).toLocaleString('en-IN')}.` };
+    }
+
+    if (exam.end_window && new Date(exam.end_window) < now) {
+      this.processExamDeadlines(examId);
+      const attempt = db.prepare('SELECT * FROM exam_attempts WHERE exam_id = ? AND student_id = ?').get(examId, studentId) as ExamAttempt | undefined;
+      return { is_eligible: false, reason: 'The deadline for this examination has passed. Score card has been generated.', attempt };
+    }
 
     const studentBatches = this.getStudentBatches(studentId);
     const studentBatchIds = new Set(studentBatches.map(b => b.id));
@@ -1626,9 +1998,22 @@ export const dbService = {
       db.prepare(`
         INSERT INTO exam_attempts (
           id, exam_id, student_id, batch_id, status, started_at,
-          authoritative_deadline, time_spent_seconds, is_paused, pause_count
-        ) VALUES (?, ?, ?, ?, 'in_progress', ?, ?, 0, 0, 0)
-      `).run(attemptId, examId, studentId, matchedBatch?.id || null, serverTimeStr, deadline);
+          authoritative_deadline, time_spent_seconds, is_paused, pause_count,
+          exam_title, exam_max_marks, exam_duration_minutes, exam_passing_percentage, batch_name
+        ) VALUES (?, ?, ?, ?, 'in_progress', ?, ?, 0, 0, 0, ?, ?, ?, ?, ?)
+      `).run(
+        attemptId,
+        examId,
+        studentId,
+        matchedBatch?.id || null,
+        serverTimeStr,
+        deadline,
+        exam.title,
+        exam.max_marks,
+        exam.duration_minutes,
+        exam.passing_percentage || 40.0,
+        matchedBatch?.name || null
+      );
 
       attempt = db.prepare('SELECT * FROM exam_attempts WHERE id = ?').get(attemptId) as ExamAttempt;
 
@@ -1999,6 +2384,9 @@ export const dbService = {
     const now = new Date();
     const timeSpent = Math.min(exam.duration_minutes * 60, Math.floor((now.getTime() - startedDate.getTime()) / 1000));
 
+    const passPct = exam.passing_percentage ?? 40.0;
+    const isPass = percentage >= passPct;
+
     db.prepare(`
       UPDATE exam_attempts
       SET status = 'completed',
@@ -2011,6 +2399,11 @@ export const dbService = {
           percentage = ?,
           accuracy = ?,
           evaluation_status = 'pending_evaluation',
+          result_status = ?,
+          exam_title = COALESCE(exam_title, ?),
+          exam_max_marks = COALESCE(exam_max_marks, ?),
+          exam_duration_minutes = COALESCE(exam_duration_minutes, ?),
+          exam_passing_percentage = COALESCE(exam_passing_percentage, ?),
           is_published = 0,
           published_at = NULL,
           published_by = NULL
@@ -2024,6 +2417,11 @@ export const dbService = {
       unattemptedCount,
       percentage,
       accuracy,
+      isPass ? 'pass' : 'fail',
+      exam.title,
+      exam.max_marks,
+      exam.duration_minutes,
+      passPct,
       attemptId
     );
 
@@ -2077,8 +2475,11 @@ export const dbService = {
       teacher_remarks?: string | null;
     })[];
   } {
-    const exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(examId) as Exam;
-    if (!exam) throw new Error('Exam not found');
+    try {
+      this.processExamDeadlines(examId);
+    } catch {}
+
+    let exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(examId) as Exam | undefined;
 
     let attempt = db.prepare('SELECT * FROM exam_attempts WHERE exam_id = ? AND student_id = ?').get(examId, studentId) as ExamAttempt | undefined;
     if (!attempt) {
@@ -2089,6 +2490,28 @@ export const dbService = {
       `).get(studentId, studentId, examId) as ExamAttempt | undefined;
     }
     if (!attempt) throw new Error('Attempt not found');
+
+    const resolvedExam: Exam = exam || {
+      id: examId,
+      title: attempt.exam_title || 'Examination',
+      description: '',
+      instructions: '',
+      duration_minutes: attempt.exam_duration_minutes || 20,
+      total_questions: 0,
+      marks_per_question: 1,
+      negative_marking: 0,
+      max_marks: attempt.exam_max_marks || 10,
+      unattempted_deduction: 0,
+      max_pauses: 0,
+      passing_percentage: attempt.exam_passing_percentage || 40.0,
+      result_release_policy: 'immediate' as const,
+      allow_pausing: false,
+      status: 'archived' as const,
+      is_deleted: 1,
+      created_by: 'system',
+      created_at: (attempt as any).created_at || new Date().toISOString(),
+      updated_at: (attempt as any).updated_at || new Date().toISOString()
+    };
 
     const isPublished = Boolean(attempt.is_published);
 
@@ -2104,11 +2527,11 @@ export const dbService = {
 
       return {
         exam: {
-          id: exam.id,
-          title: exam.title,
-          total_questions: exam.total_questions,
-          max_marks: exam.max_marks,
-          instructions: exam.instructions
+          id: resolvedExam.id,
+          title: resolvedExam.title,
+          total_questions: resolvedExam.total_questions,
+          max_marks: resolvedExam.max_marks,
+          instructions: resolvedExam.instructions
         },
         attempt: {
           id: attempt.id,
@@ -2178,7 +2601,7 @@ export const dbService = {
     }
 
     return {
-      exam,
+      exam: resolvedExam,
       attempt,
       is_published: true,
       status_message: 'Result Published',
@@ -2195,6 +2618,11 @@ export const dbService = {
     stats: {
       total_students_eligible: number;
       total_attempted: number;
+      passed_count?: number;
+      failed_count?: number;
+      absent_count?: number;
+      pass_rate?: number;
+      passing_percentage?: number;
       average_score: number;
       highest_score: number;
       lowest_score: number;
@@ -2208,8 +2636,11 @@ export const dbService = {
       attempted_count: number;
     }[];
   } {
-    const exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(examId) as Exam;
-    if (!exam) throw new Error('Exam not found');
+    try {
+      this.processExamDeadlines(examId);
+    } catch {}
+
+    let exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(examId) as Exam | undefined;
 
     const attempts = db.prepare(`
       SELECT att.*, p.name as student_name, p.student_id as student_id_code, coalesce(b.name, 'Default Batch') as batch_name
@@ -2217,22 +2648,66 @@ export const dbService = {
       JOIN profiles p ON att.student_id = p.id
       LEFT JOIN batches b ON att.batch_id = b.id
       WHERE att.exam_id = ?
-      ORDER BY att.total_score DESC, att.time_spent_seconds ASC
+      ORDER BY att.is_absent ASC, att.total_score DESC, att.time_spent_seconds ASC
     `).all(examId) as (ExamAttempt & { student_name: string; student_id_code: string; batch_name: string })[];
 
+    if (!exam && attempts.length > 0) {
+      const firstAtt = attempts[0];
+      exam = {
+        id: examId,
+        title: firstAtt.exam_title || 'Archived Examination',
+        max_marks: firstAtt.exam_max_marks || 20,
+        total_questions: (firstAtt.total_unattempted || 0) + (firstAtt.total_correct || 0) + (firstAtt.total_incorrect || 0) || 10,
+        duration_minutes: firstAtt.exam_duration_minutes || 20,
+        marks_per_question: 1,
+        negative_marking: 0,
+        unattempted_deduction: 0,
+        allow_pausing: false,
+        max_pauses: 0,
+        status: 'archived',
+        result_release_policy: 'immediate',
+        created_at: firstAtt.started_at,
+        updated_at: firstAtt.submitted_at || firstAtt.started_at,
+        passing_percentage: firstAtt.exam_passing_percentage || 40.0
+      };
+    } else if (!exam) {
+      throw new Error('Exam not found');
+    }
+
+    const passPct = exam.passing_percentage ?? 40.0;
+
     // Eligible students count
-    const eligibleCount = (db.prepare(`
+    const eligibleCountRow = db.prepare(`
       SELECT count(DISTINCT bm.user_id) as count
       FROM batch_memberships bm
       JOIN exam_batches eb ON bm.batch_id = eb.batch_id
       WHERE eb.exam_id = ?
-    `).get(examId) as { count: number }).count;
+    `).get(examId) as { count: number } | undefined;
+    const eligibleCount = Math.max(eligibleCountRow?.count || 0, attempts.length);
 
-    const scores = attempts.filter(a => a.total_score !== null).map(a => a.total_score!);
+    // Compute authorized rank: only for students who attended and scored
+    let rankCounter = 1;
+    attempts.forEach(att => {
+      if (att.is_absent) {
+        att.rank = null;
+        att.result_status = 'absent_fail';
+      } else {
+        att.rank = rankCounter++;
+        att.result_status = Number(att.percentage || 0) >= passPct ? 'pass' : 'fail';
+      }
+    });
+
+    const attendedAttempts = attempts.filter(a => !a.is_absent);
+    const scores = attendedAttempts.filter(a => a.total_score !== null).map(a => a.total_score!);
     const avgScore = scores.length > 0 ? Number((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1)) : 0;
     const highestScore = scores.length > 0 ? Math.max(...scores) : 0;
     const lowestScore = scores.length > 0 ? Math.min(...scores) : 0;
-    const avgTime = attempts.length > 0 ? Math.floor(attempts.reduce((a, b) => a + b.time_spent_seconds, 0) / attempts.length) : 0;
+    const avgTime = attendedAttempts.length > 0 ? Math.floor(attendedAttempts.reduce((a, b) => a + b.time_spent_seconds, 0) / attendedAttempts.length) : 0;
+
+    const passedCount = attempts.filter(a => !a.is_absent && (Number(a.percentage || 0) >= passPct)).length;
+    const absentCount = attempts.filter(a => Boolean(a.is_absent)).length;
+    const failedCount = attempts.filter(a => a.is_absent || (Number(a.percentage || 0) < passPct)).length;
+    const passRate = eligibleCount > 0 ? Number(((passedCount / eligibleCount) * 100).toFixed(1)) : 0;
 
     // Question stats
     const qStats = db.prepare(`
@@ -2253,7 +2728,12 @@ export const dbService = {
       attempts,
       stats: {
         total_students_eligible: eligibleCount,
-        total_attempted: attempts.length,
+        total_attempted: attendedAttempts.length,
+        passed_count: passedCount,
+        failed_count: failedCount,
+        absent_count: absentCount,
+        pass_rate: passRate,
+        passing_percentage: passPct,
         average_score: avgScore,
         highest_score: highestScore,
         lowest_score: lowestScore,
@@ -2284,6 +2764,7 @@ export const dbService = {
     recent_submissions: (AssignmentSubmission & { student_name: string; assignment_title: string; batch_name: string })[];
     recent_results: (ExamAttempt & { student_name: string; exam_title: string })[];
     batch_completion_rates: { batch_name: string; completion_pct: number; student_count: number }[];
+    exam_pass_fail_summary?: any;
   } {
     const totalStudents = (db.prepare(`SELECT count(*) as count FROM profiles WHERE role = 'student' AND status = 'active'`).get() as { count: number } | undefined)?.count || 0;
     const activeBatches = (db.prepare(`SELECT count(*) as count FROM batches WHERE status = 'active'`).get() as { count: number } | undefined)?.count || 0;
@@ -2350,6 +2831,123 @@ export const dbService = {
       };
     });
 
+    // 1. Auto-process deadlines so unattempted students are marked absent/fail
+    try {
+      this.processExamDeadlines();
+    } catch {}
+
+    // 2. Compute comprehensive pass/fail analytics across all exams (active and archived/removed)
+    // Even if an exam was removed by the trainer, scorecards and history remain permanently preserved!
+    const allExams = db.prepare(`SELECT * FROM exams ORDER BY created_at DESC`).all() as Exam[];
+    const examReports: any[] = [];
+
+    let overallPassedCount = 0;
+    let overallFailedCount = 0;
+    let overallAbsentCount = 0;
+    let overallEligibleCount = 0;
+
+    for (const ex of allExams) {
+      const passPct = ex.passing_percentage ?? 40.0;
+      const bNames = (db.prepare(`
+        SELECT b.name FROM batches b
+        JOIN exam_batches eb ON b.id = eb.batch_id
+        WHERE eb.exam_id = ?
+      `).all(ex.id) as { name: string }[]).map(r => r.name);
+
+      // Fetch all eligible students for this exam's batches
+      const eligibleStudents = db.prepare(`
+        SELECT DISTINCT p.id as student_id, p.name, p.student_id as student_id_code, COALESCE(b.name, 'Enrolled Batch') as batch_name
+        FROM batch_memberships bm
+        JOIN profiles p ON bm.user_id = p.id
+        LEFT JOIN batches b ON bm.batch_id = b.id
+        JOIN exam_batches eb ON bm.batch_id = eb.batch_id
+        WHERE eb.exam_id = ? AND p.role = 'student' AND p.status = 'active'
+        ORDER BY p.name ASC
+      `).all(ex.id) as { student_id: string; name: string; student_id_code: string; batch_name: string }[];
+
+      // Fetch all attempts for this exam
+      const attempts = db.prepare(`
+        SELECT att.*, p.name as student_name, p.student_id as student_id_code, COALESCE(b.name, 'Enrolled Batch') as batch_name
+        FROM exam_attempts att
+        JOIN profiles p ON att.student_id = p.id
+        LEFT JOIN batches b ON att.batch_id = b.id
+        WHERE att.exam_id = ?
+      `).all(ex.id) as any[];
+
+      const attemptMap = new Map(attempts.map(a => [a.student_id, a]));
+
+      let exPassed = 0;
+      let exFailed = 0;
+      let exAbsent = 0;
+
+      const studentList = eligibleStudents.map(stu => {
+        const att = attemptMap.get(stu.student_id);
+        if (!att) {
+          return {
+            student_id: stu.student_id,
+            name: stu.name,
+            student_id_code: stu.student_id_code,
+            batch_name: stu.batch_name,
+            total_score: null,
+            max_marks: ex.max_marks,
+            percentage: null,
+            is_absent: false,
+            result_status: 'pending' as const,
+            status: 'not_started'
+          };
+        }
+
+        const isAbsent = Boolean(att.is_absent);
+        const isPass = !isAbsent && (Number(att.percentage || 0) >= passPct);
+        const resStatus: 'pass' | 'fail' | 'absent_fail' = isAbsent ? 'absent_fail' : (isPass ? 'pass' : 'fail');
+
+        if (isPass) {
+          exPassed++;
+        } else {
+          exFailed++;
+          if (isAbsent) exAbsent++;
+        }
+
+        return {
+          student_id: stu.student_id,
+          name: stu.name,
+          student_id_code: stu.student_id_code,
+          batch_name: att.batch_name || stu.batch_name,
+          total_score: att.total_score,
+          max_marks: ex.max_marks,
+          percentage: att.percentage,
+          is_absent: isAbsent,
+          result_status: resStatus,
+          status: att.status
+        };
+      });
+
+      overallPassedCount += exPassed;
+      overallFailedCount += exFailed;
+      overallAbsentCount += exAbsent;
+      overallEligibleCount += eligibleStudents.length;
+
+      examReports.push({
+        exam_id: ex.id,
+        title: ex.title,
+        is_deleted: Boolean(ex.is_deleted),
+        status: ex.status,
+        duration_minutes: ex.duration_minutes,
+        max_marks: ex.max_marks,
+        passing_percentage: passPct,
+        deadline: ex.end_window || null,
+        created_at: ex.created_at,
+        batch_names: bNames.length > 0 ? bNames : ['All Batches'],
+        total_eligible: eligibleStudents.length,
+        total_attempted: attempts.filter(a => !a.is_absent && a.status === 'completed').length,
+        passed_count: exPassed,
+        failed_count: exFailed,
+        absent_count: exAbsent,
+        pass_rate: eligibleStudents.length > 0 ? Number(((exPassed / eligibleStudents.length) * 100).toFixed(1)) : 0,
+        students: studentList
+      });
+    }
+
     return {
       total_students: totalStudents,
       active_batches: activeBatches,
@@ -2363,7 +2961,15 @@ export const dbService = {
       exams_in_progress: examsInProgress,
       recent_submissions: recentSubmissions,
       recent_results: recentResults,
-      batch_completion_rates: batchCompletionRates
+      batch_completion_rates: batchCompletionRates,
+      exam_pass_fail_summary: {
+        total_exams_conducted: allExams.length,
+        total_passed_students: overallPassedCount,
+        total_failed_students: overallFailedCount,
+        total_absent_students: overallAbsentCount,
+        overall_pass_rate: overallEligibleCount > 0 ? Number(((overallPassedCount / overallEligibleCount) * 100).toFixed(1)) : 0,
+        reports: examReports
+      }
     };
   },
 
@@ -2913,6 +3519,45 @@ export const dbService = {
     const newScore = Math.max(0, Number(sumRow.total.toFixed(2)));
     const percentage = Number(((newScore / exam.max_marks) * 100).toFixed(1));
 
+    // Recalculate total_correct, total_incorrect, and total_unattempted based on trainer grading:
+    // Full marks (manual_marks >= question.marks) -> correct
+    // 0 marks (manual_marks <= 0) -> incorrect
+    // Partial marks (0 < manual_marks < question.marks) -> unattempted
+    const allResponses = db.prepare(`
+      SELECT ar.manual_marks, ar.selected_option_id, q.marks as q_marks, q.correct_option_id, q.question_type
+      FROM attempt_responses ar
+      JOIN question_bank q ON ar.question_id = q.id
+      WHERE ar.attempt_id = ?
+    `).all(attemptId) as any[];
+
+    let totalCorrect = 0;
+    let totalIncorrect = 0;
+    let totalUnattempted = 0;
+
+    for (const r of allResponses) {
+      const maxQMarks = Number(r.q_marks || 1);
+      if (r.manual_marks !== null && r.manual_marks !== undefined) {
+        const m = Number(r.manual_marks);
+        if (m >= maxQMarks) {
+          totalCorrect++;
+        } else if (m <= 0) {
+          totalIncorrect++;
+        } else {
+          totalUnattempted++;
+        }
+      } else if (r.question_type === 'mcq') {
+        if (!r.selected_option_id) {
+          totalUnattempted++;
+        } else if (r.selected_option_id === r.correct_option_id) {
+          totalCorrect++;
+        } else {
+          totalIncorrect++;
+        }
+      } else {
+        totalUnattempted++;
+      }
+    }
+
     // Audit trail
     let history: any[] = [];
     try {
@@ -2933,6 +3578,9 @@ export const dbService = {
       UPDATE exam_attempts
       SET total_score = ?,
           percentage = ?,
+          total_correct = ?,
+          total_incorrect = ?,
+          total_unattempted = ?,
           evaluation_status = ?,
           evaluated_at = ?,
           evaluated_by = ?,
@@ -2942,6 +3590,9 @@ export const dbService = {
     `).run(
       newScore,
       percentage,
+      totalCorrect,
+      totalIncorrect,
+      totalUnattempted,
       data.status,
       new Date().toISOString(),
       trainerId,
@@ -3076,6 +3727,41 @@ export const dbService = {
     const newScore = Math.max(0, Number(sumRow.total.toFixed(2)));
     const percentage = Number(((newScore / exam.max_marks) * 100).toFixed(1));
 
+    const allResponses = db.prepare(`
+      SELECT ar.manual_marks, ar.selected_option_id, q.marks as q_marks, q.correct_option_id, q.question_type
+      FROM attempt_responses ar
+      JOIN question_bank q ON ar.question_id = q.id
+      WHERE ar.attempt_id = ?
+    `).all(attemptId) as any[];
+
+    let totalCorrect = 0;
+    let totalIncorrect = 0;
+    let totalUnattempted = 0;
+
+    for (const r of allResponses) {
+      const maxQMarks = Number(r.q_marks || 1);
+      if (r.manual_marks !== null && r.manual_marks !== undefined) {
+        const m = Number(r.manual_marks);
+        if (m >= maxQMarks) {
+          totalCorrect++;
+        } else if (m <= 0) {
+          totalIncorrect++;
+        } else {
+          totalUnattempted++;
+        }
+      } else if (r.question_type === 'mcq') {
+        if (!r.selected_option_id) {
+          totalUnattempted++;
+        } else if (r.selected_option_id === r.correct_option_id) {
+          totalCorrect++;
+        } else {
+          totalIncorrect++;
+        }
+      } else {
+        totalUnattempted++;
+      }
+    }
+
     let history: any[] = [];
     try {
       if (attempt.evaluation_history) history = JSON.parse(attempt.evaluation_history);
@@ -3095,6 +3781,9 @@ export const dbService = {
       UPDATE exam_attempts
       SET total_score = ?,
           percentage = ?,
+          total_correct = ?,
+          total_incorrect = ?,
+          total_unattempted = ?,
           is_published = 1,
           evaluation_status = 'published',
           published_at = ?,
@@ -3105,6 +3794,9 @@ export const dbService = {
     `).run(
       newScore,
       percentage,
+      totalCorrect,
+      totalIncorrect,
+      totalUnattempted,
       new Date().toISOString(),
       trainerId,
       data.trainer_feedback ?? attempt.trainer_feedback,
@@ -3127,25 +3819,55 @@ export const dbService = {
     const student = this.getUserById(studentId) || this.getUserByStudentId(studentId) || this.getUserByEmail(studentId);
     if (!student) return [];
 
-    const assignedExams = this.getExamsForStudent(student.id);
+    // Auto-process deadlines first so absent students get their fail score cards
+    try {
+      this.processExamDeadlines();
+    } catch {}
 
-    return assignedExams.map(ex => {
-      const att = db.prepare(`
-        SELECT * FROM exam_attempts WHERE exam_id = ? AND (student_id = ? OR student_id = ?)
-      `).get(ex.id, student.id, student.student_id) as any;
+    const studentAttempts = db.prepare(`
+      SELECT * FROM exam_attempts 
+      WHERE (student_id = ? OR student_id = ?)
+      ORDER BY submitted_at DESC, started_at DESC
+    `).all(student.id, student.student_id || '') as any[];
 
-      if (!att) {
-        return {
-          exam: ex,
-          submission_state: 'not_started' as const,
-          attempt: null
+    const seenExamIds = new Set<string>();
+    const results: any[] = [];
+
+    for (const att of studentAttempts) {
+      seenExamIds.add(att.exam_id);
+      let exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(att.exam_id) as Exam | undefined;
+      const passPct = Number(exam?.passing_percentage ?? (att.exam_passing_percentage || 40.0));
+
+      if (!exam) {
+        exam = {
+          id: att.exam_id,
+          title: att.exam_title || 'Examination',
+          max_marks: att.exam_max_marks || 20,
+          total_questions: (att.total_unattempted || 0) + (att.total_correct || 0) + (att.total_incorrect || 0) || 10,
+          duration_minutes: att.exam_duration_minutes || 20,
+          marks_per_question: 1,
+          negative_marking: 0,
+          unattempted_deduction: 0,
+          allow_pausing: false,
+          max_pauses: 0,
+          status: 'archived',
+          result_release_policy: 'immediate',
+          created_at: att.started_at,
+          updated_at: att.submitted_at || att.started_at,
+          passing_percentage: passPct
         };
       }
 
       const isPublished = Boolean(att.is_published);
+      const isAbsent = Boolean(att.is_absent);
+      const isPass = !isAbsent && (Number(att.percentage || 0) >= passPct);
+      const resultStatus = isAbsent ? 'absent_fail' : (isPass ? 'pass' : 'fail');
 
-      return {
-        exam: ex,
+      results.push({
+        exam: {
+          ...exam,
+          passing_percentage: passPct
+        },
         submission_state: att.status === 'in_progress'
           ? ('in_progress' as const)
           : isPublished
@@ -3157,14 +3879,30 @@ export const dbService = {
           submitted_at: att.submitted_at,
           evaluation_status: att.evaluation_status || 'pending_evaluation',
           is_published: isPublished,
-          // Only reveal score when published!
+          is_absent: isAbsent,
+          result_status: resultStatus,
+          passing_percentage: passPct,
           total_score: isPublished ? att.total_score : null,
           percentage: isPublished ? att.percentage : null,
           trainer_feedback: isPublished ? att.trainer_feedback : null,
           published_at: isPublished ? att.published_at : null
         }
-      };
-    });
+      });
+    }
+
+    // Also include any active assigned exams that have not been attempted yet
+    const assignedExams = this.getExamsForStudent(student.id);
+    for (const ex of assignedExams) {
+      if (!seenExamIds.has(ex.id)) {
+        results.push({
+          exam: ex,
+          submission_state: 'not_started' as const,
+          attempt: null
+        });
+      }
+    }
+
+    return results;
   },
 
   // Trainer Activity Calendar Events
