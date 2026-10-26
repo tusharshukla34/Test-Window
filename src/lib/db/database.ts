@@ -330,6 +330,43 @@ export function ensureAllMigrations(targetDb: InstanceType<typeof Database> = db
       console.warn('[ensureAllMigrations attempt metrics healing warning]:', metricHealErr);
     }
 
+    // Clean up any premature absent attempts generated before the exam deadline had passed,
+    // or generated for exams with no deadline set.
+    try {
+      const allAbsentAttempts = targetDb.prepare(`
+        SELECT ea.id, ea.exam_id, e.end_window
+        FROM exam_attempts ea
+        JOIN exams e ON ea.exam_id = e.id
+        WHERE ea.is_absent = 1 OR ea.result_status = 'absent_fail'
+      `).all() as { id: string; exam_id: string; end_window: string | null }[];
+
+      const nowTime = Date.now();
+      const invalidAttemptIds: string[] = [];
+
+      for (const att of allAbsentAttempts) {
+        if (!att.end_window || att.end_window.trim() === '') {
+          // Exam had NO deadline set! Student was prematurely marked absent
+          invalidAttemptIds.push(att.id);
+        } else {
+          const deadlineTimestamp = new Date(att.end_window).getTime();
+          if (isNaN(deadlineTimestamp) || nowTime < deadlineTimestamp) {
+            // Deadline is in the FUTURE! Student was prematurely marked absent
+            invalidAttemptIds.push(att.id);
+          }
+        }
+      }
+
+      if (invalidAttemptIds.length > 0) {
+        console.log(`[Auto-heal] Removing ${invalidAttemptIds.length} premature absent attempts (deadline not passed yet)...`);
+        for (const attId of invalidAttemptIds) {
+          targetDb.prepare('DELETE FROM attempt_responses WHERE attempt_id = ?').run(attId);
+          targetDb.prepare('DELETE FROM exam_attempts WHERE id = ?').run(attId);
+        }
+      }
+    } catch (cleanupErr) {
+      console.warn('[Auto-heal premature absent attempts warning]:', cleanupErr);
+    }
+
     // Backfill exam snapshots and result_status on exam_attempts so scorecards are permanent
     try {
       targetDb.prepare(`
@@ -1718,12 +1755,26 @@ export const dbService = {
           WHERE is_deleted = 0 
             AND status = 'published' 
             AND end_window IS NOT NULL 
-            AND end_window != '' 
-            AND end_window <= datetime('now')
+            AND end_window != ''
         `).all() as Exam[];
       }
 
+      const nowTime = Date.now();
+
       for (const ex of targetExams) {
+        // STRICT DEADLINE RULE:
+        // A student who has not attempted should ONLY be marked as failed if the deadline has actually crossed!
+        if (!ex.end_window || ex.end_window.trim() === '') {
+          // No deadline is configured. Do not auto-fail unattempted students.
+          continue;
+        }
+
+        const deadlineTimestamp = new Date(ex.end_window).getTime();
+        if (isNaN(deadlineTimestamp) || nowTime < deadlineTimestamp) {
+          // Deadline has NOT crossed yet. Students still have time to take the examination.
+          continue;
+        }
+
         processedExams++;
         const passPct = ex.passing_percentage ?? 40.0;
 
@@ -3351,7 +3402,9 @@ export const dbService = {
         att.evaluated_at,
         att.evaluated_by,
         att.trainer_feedback,
-        att.evaluation_history
+        att.evaluation_history,
+        COALESCE(att.is_absent, 0) as is_absent,
+        att.result_status
       FROM exam_attempts att
       JOIN exams e ON att.exam_id = e.id
       JOIN profiles p ON (att.student_id = p.id OR att.student_id = p.student_id)
@@ -3359,6 +3412,14 @@ export const dbService = {
       WHERE att.status = 'completed'
     `;
     const params: any[] = [];
+
+    // The evaluation dashboard is strictly for reviewing submitted answer sheets.
+    // Unattempted / absent students did not submit anything to evaluate, so exclude them from the evaluation dashboard by default.
+    if (filter?.status === 'absent') {
+      query += ` AND (att.is_absent = 1 OR att.result_status = 'absent_fail')`;
+    } else {
+      query += ` AND COALESCE(att.is_absent, 0) = 0 AND COALESCE(att.result_status, '') != 'absent_fail'`;
+    }
 
     if (filter?.batch_id && filter.batch_id !== 'all') {
       query += ` AND att.batch_id = ?`;
@@ -3368,7 +3429,7 @@ export const dbService = {
       query += ` AND att.exam_id = ?`;
       params.push(filter.exam_id);
     }
-    if (filter?.status && filter.status !== 'all') {
+    if (filter?.status && filter.status !== 'all' && filter.status !== 'absent') {
       if (filter.status === 'published') {
         query += ` AND att.is_published = 1`;
       } else if (filter.status === 'unpublished') {
@@ -3401,7 +3462,12 @@ export const dbService = {
       ${targetBatchClause}
     `).get(...metricParams) as { count: number };
 
-    const allCompletedAttempts = db.prepare(`SELECT * FROM exam_attempts WHERE status = 'completed'`).all() as any[];
+    const allCompletedAttempts = db.prepare(`
+      SELECT * FROM exam_attempts 
+      WHERE status = 'completed' 
+        AND COALESCE(is_absent, 0) = 0 
+        AND COALESCE(result_status, '') != 'absent_fail'
+    `).all() as any[];
     const inProgressAttempts = db.prepare(`SELECT COUNT(*) as count FROM exam_attempts WHERE status = 'in_progress'`).get() as { count: number };
 
     let pendingEvalCount = 0;

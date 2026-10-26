@@ -43,6 +43,8 @@ interface EvaluationAttemptRow {
   evaluated_at: string | null;
   evaluated_by: string | null;
   trainer_feedback: string | null;
+  is_absent?: number | boolean;
+  result_status?: string;
 }
 
 export default function AdminExamEvaluationsPage() {
@@ -270,12 +272,13 @@ export default function AdminExamEvaluationsPage() {
               onChange={e => setStatusFilter(e.target.value)}
               className="w-full text-xs font-semibold rounded-xl border border-slate-200 p-2 bg-slate-50 focus:bg-white"
             >
-              <option value="all">All Statuses</option>
+              <option value="all">All Submitted Answer Sheets</option>
               <option value="pending_evaluation">Pending Evaluation</option>
               <option value="in_progress">In Progress (Draft)</option>
               <option value="evaluated">Evaluated (Ready to Publish)</option>
               <option value="published">Published</option>
               <option value="unpublished">Unpublished Only</option>
+              <option value="absent">Absent on Deadline (Unattempted)</option>
             </select>
           </div>
 
@@ -402,7 +405,11 @@ export default function AdminExamEvaluationsPage() {
                         )}
                       </td>
                       <td className="py-3 px-4">
-                        {row.evaluation_status === 'published' ? (
+                        {row.is_absent || row.result_status === 'absent_fail' ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                            Absent (Missed Deadline)
+                          </span>
+                        ) : row.evaluation_status === 'published' ? (
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                             Evaluated & Published
                           </span>
@@ -436,7 +443,7 @@ export default function AdminExamEvaluationsPage() {
                           onClick={() => router.push(`/admin/exam-evaluations/${row.id}`)}
                           className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-indigo-50 text-indigo-700 text-xs font-bold transition-colors cursor-pointer"
                         >
-                          <Eye size={13} /> Evaluate <ChevronRight size={13} />
+                          <Eye size={13} /> {row.is_absent || row.result_status === 'absent_fail' ? 'View Record' : 'Evaluate'} <ChevronRight size={13} />
                         </button>
                       </td>
                     </tr>
