@@ -302,17 +302,23 @@ export default function StudentExamResultPage() {
 
         <ClayCard className="p-3 sm:p-4 text-center bg-white border border-slate-200">
           <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Correct</span>
-          <p className="text-xl sm:text-2xl font-black text-emerald-700 mt-1">{attempt.total_correct ?? 0}</p>
+          <p className="text-xl sm:text-2xl font-black text-emerald-700 mt-1">
+            {isAbsent ? 0 : (attempt.total_correct ?? 0)}
+          </p>
         </ClayCard>
 
         <ClayCard className="p-3 sm:p-4 text-center bg-white border border-slate-200">
           <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider">Incorrect</span>
-          <p className="text-xl sm:text-2xl font-black text-rose-700 mt-1">{attempt.total_incorrect ?? 0}</p>
+          <p className="text-xl sm:text-2xl font-black text-rose-700 mt-1">
+            {isAbsent ? 0 : (attempt.total_incorrect ?? 0)}
+          </p>
         </ClayCard>
 
         <ClayCard className="p-3 sm:p-4 text-center bg-white border border-slate-200">
           <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Unattempted / Partial</span>
-          <p className="text-xl sm:text-2xl font-black text-amber-700 mt-1">{attempt.total_unattempted ?? 0}</p>
+          <p className="text-xl sm:text-2xl font-black text-amber-700 mt-1">
+            {isAbsent ? (exam.total_questions || questions_review?.length || 0) : (attempt.total_unattempted ?? 0)}
+          </p>
         </ClayCard>
 
         <ClayCard className="p-3 sm:p-4 text-center col-span-2 sm:col-span-1 bg-white border border-slate-200">
@@ -364,12 +370,18 @@ export default function StudentExamResultPage() {
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap">
-                      {q.manual_marks !== undefined && q.manual_marks !== null && (
-                        <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-300">
-                          Awarded Marks: {q.manual_marks} / {q.marks}
+                      <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-300">
+                        Awarded Marks: {isAbsent ? 0 : (q.manual_marks !== undefined && q.manual_marks !== null ? q.manual_marks : (isCorrect ? q.marks : 0))} / {q.marks}
+                      </span>
+                      {isAbsent ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1">
+                          Unattempted (Absent) (0 pts)
                         </span>
-                      )}
-                      {q.manual_marks !== undefined && q.manual_marks !== null ? (
+                      ) : isUnattempted ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1">
+                          Unattempted (0 pts)
+                        </span>
+                      ) : q.manual_marks !== undefined && q.manual_marks !== null ? (
                         Number(q.manual_marks) >= Number(q.marks) ? (
                           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
                             <CheckCircle2 size={12} /> Correct (+{q.manual_marks})
@@ -380,13 +392,9 @@ export default function StudentExamResultPage() {
                           </span>
                         ) : (
                           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
-                            <Sparkles size={12} /> Partial Marks / Unattempted (+{q.manual_marks})
+                            <Sparkles size={12} /> Partial Marks (+{q.manual_marks})
                           </span>
                         )
-                      ) : isUnattempted ? (
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
-                          Unattempted (0 pts)
-                        </span>
                       ) : isMcq ? (
                         isCorrect ? (
                           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center gap-1">
@@ -418,10 +426,12 @@ export default function StudentExamResultPage() {
                         </span>
                         <span>{q.descriptive_answer ? `${q.descriptive_answer.split('\n').length} lines` : '0 lines'}</span>
                       </div>
-                      {q.descriptive_answer ? (
+                      {q.descriptive_answer && q.descriptive_answer.trim().length > 0 && q.descriptive_answer.trim() !== (q.code_template || '').trim() ? (
                         <pre className="whitespace-pre overflow-x-auto leading-relaxed">{q.descriptive_answer}</pre>
                       ) : (
-                        <span className="text-slate-500 italic font-sans">No code solution was submitted.</span>
+                        <span className="text-slate-500 italic font-sans">
+                          {isAbsent ? 'No code was submitted (Student was absent on deadline).' : 'No code solution was submitted.'}
+                        </span>
                       )}
                     </div>
                   )}
@@ -433,10 +443,12 @@ export default function StudentExamResultPage() {
                         <span>Your Written Answer Response</span>
                         <span>{q.descriptive_answer ? `${q.descriptive_answer.trim().split(/\s+/).filter(Boolean).length} words` : '0 words'}</span>
                       </div>
-                      {q.descriptive_answer ? (
+                      {q.descriptive_answer && q.descriptive_answer.trim().length > 0 ? (
                         <p className="whitespace-pre-wrap leading-relaxed text-slate-800 font-medium">{q.descriptive_answer}</p>
                       ) : (
-                        <span className="text-slate-400 italic">No written response was submitted.</span>
+                        <span className="text-slate-400 italic">
+                          {isAbsent ? 'No written response was submitted (Student was absent on deadline).' : 'No written response was submitted.'}
+                        </span>
                       )}
                     </div>
                   )}
@@ -462,7 +474,9 @@ export default function StudentExamResultPage() {
                           </a>
                         </div>
                       ) : (
-                        <span className="text-slate-400 italic">No file attachment was submitted.</span>
+                        <span className="text-slate-400 italic">
+                          {isAbsent ? 'No file attachment was submitted (Student was absent on deadline).' : 'No file attachment was submitted.'}
+                        </span>
                       )}
                     </div>
                   )}

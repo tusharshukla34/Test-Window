@@ -240,6 +240,7 @@ export default function AdminAttemptEvaluationPage() {
   }
 
   const isPublished = Boolean(attempt.is_published);
+  const isAbsent = Boolean(attempt.is_absent || (attempt as any).result_status === 'absent_fail');
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in py-4">
@@ -253,7 +254,11 @@ export default function AdminAttemptEvaluationPage() {
         </button>
 
         <div className="flex items-center gap-2">
-          {isPublished ? (
+          {isAbsent ? (
+            <span className="px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200 flex items-center gap-1.5">
+              <AlertCircle size={14} className="text-rose-600" /> Absent (Missed Deadline)
+            </span>
+          ) : isPublished ? (
             <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1.5">
               <ShieldCheck size={14} className="text-emerald-600" /> Result Officially Published
             </span>
@@ -275,6 +280,14 @@ export default function AdminAttemptEvaluationPage() {
 
       {/* Candidate & Exam Metadata Banner */}
       <ClayCard className="p-6 bg-white border border-slate-200 shadow-sm space-y-4">
+        {isAbsent && (
+          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-center gap-2.5 font-medium">
+            <AlertCircle size={16} className="text-rose-600 shrink-0" />
+            <div>
+              <strong>Candidate was Absent:</strong> This candidate did not attempt the examination before the scheduled deadline. The score card is permanently recorded as Fail (Absent) with 0 marks.
+            </div>
+          </div>
+        )}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
           <div>
             <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 block">
@@ -520,10 +533,12 @@ export default function AdminAttemptEvaluationPage() {
                         {q.descriptive_answer ? `${q.descriptive_answer.split('\n').length} lines` : '0 lines'}
                       </span>
                     </div>
-                    {q.descriptive_answer ? (
+                    {q.descriptive_answer && q.descriptive_answer.trim().length > 0 && q.descriptive_answer.trim() !== (q.code_template || '').trim() ? (
                       <pre className="whitespace-pre overflow-x-auto leading-relaxed">{q.descriptive_answer}</pre>
                     ) : (
-                      <span className="text-slate-500 italic font-sans">No code solution was submitted for this question.</span>
+                      <span className="text-slate-500 italic font-sans">
+                        {isAbsent ? 'No code was submitted (Candidate was absent on deadline).' : 'No code solution was submitted for this question.'}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -537,12 +552,14 @@ export default function AdminAttemptEvaluationPage() {
                       {q.descriptive_answer ? `${q.descriptive_answer.trim().split(/\s+/).filter(Boolean).length} words` : '0 words'}
                     </span>
                   </div>
-                  {q.descriptive_answer ? (
+                  {q.descriptive_answer && q.descriptive_answer.trim().length > 0 ? (
                     <p className="whitespace-pre-wrap leading-relaxed text-slate-800 font-medium">
                       {q.descriptive_answer}
                     </p>
                   ) : (
-                    <span className="text-slate-400 italic">No written response was submitted for this question.</span>
+                    <span className="text-slate-400 italic">
+                      {isAbsent ? 'No written response was submitted (Candidate was absent on deadline).' : 'No written response was submitted for this question.'}
+                    </span>
                   )}
                 </div>
               )}
@@ -567,7 +584,9 @@ export default function AdminAttemptEvaluationPage() {
                       </a>
                     </div>
                   ) : (
-                    <span className="text-slate-400 italic">No file attachment was submitted by candidate.</span>
+                    <span className="text-slate-400 italic">
+                      {isAbsent ? 'No file attachment was submitted (Candidate was absent on deadline).' : 'No file attachment was submitted by candidate.'}
+                    </span>
                   )}
                 </div>
               )}

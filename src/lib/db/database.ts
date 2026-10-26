@@ -254,13 +254,32 @@ export function ensureAllMigrations(targetDb: InstanceType<typeof Database> = db
     // Reconcile and auto-heal total_correct, total_incorrect, total_unattempted for all evaluated attempts
     try {
       const evaluatedAttempts = targetDb.prepare(`
-        SELECT id FROM exam_attempts 
+        SELECT id, exam_id, is_absent, result_status FROM exam_attempts 
         WHERE evaluation_status IN ('evaluated', 'published') OR status = 'completed'
-      `).all() as { id: string }[];
+      `).all() as { id: string; exam_id: string; is_absent?: number; result_status?: string }[];
 
       for (const att of evaluatedAttempts) {
+        if (att.is_absent === 1 || att.result_status === 'absent_fail') {
+          // Absent candidate: never attended the exam -> exactly 0 correct, 0 incorrect, all unattempted
+          const qCountRow = targetDb.prepare(`
+            SELECT count(*) as cnt FROM exam_questions WHERE exam_id = ?
+          `).get(att.exam_id) as { cnt: number } | undefined;
+          const respCountRow = targetDb.prepare(`
+            SELECT count(*) as cnt FROM attempt_responses WHERE attempt_id = ?
+          `).get(att.id) as { cnt: number } | undefined;
+          const totalQ = qCountRow?.cnt || respCountRow?.cnt || 0;
+
+          targetDb.prepare(`
+            UPDATE exam_attempts
+            SET total_correct = 0, total_incorrect = 0, total_unattempted = ?
+            WHERE id = ?
+          `).run(totalQ, att.id);
+          continue;
+        }
+
         const resps = targetDb.prepare(`
-          SELECT ar.manual_marks, ar.selected_option_id, q.marks as q_marks, q.correct_option_id, q.question_type
+          SELECT ar.manual_marks, ar.selected_option_id, ar.descriptive_answer, ar.submitted_file_url,
+                 q.marks as q_marks, q.correct_option_id, q.question_type, q.code_template
           FROM attempt_responses ar
           JOIN question_bank q ON ar.question_id = q.id
           WHERE ar.attempt_id = ?
@@ -272,7 +291,16 @@ export function ensureAllMigrations(targetDb: InstanceType<typeof Database> = db
 
         for (const r of resps) {
           const maxQMarks = Number(r.q_marks || 1);
-          if (r.manual_marks !== null && r.manual_marks !== undefined) {
+          const isMcq = r.question_type === 'mcq';
+          const isUnattempted = isMcq
+            ? !r.selected_option_id
+            : r.question_type === 'file_upload'
+            ? !r.submitted_file_url
+            : !(r.descriptive_answer && r.descriptive_answer.trim().length > 0 && r.descriptive_answer.trim() !== (r.code_template || '').trim());
+
+          if (isUnattempted) {
+            totalUnattempted++;
+          } else if (r.manual_marks !== null && r.manual_marks !== undefined) {
             const m = Number(r.manual_marks);
             if (m >= maxQMarks) {
               totalCorrect++;
@@ -281,10 +309,8 @@ export function ensureAllMigrations(targetDb: InstanceType<typeof Database> = db
             } else {
               totalUnattempted++;
             }
-          } else if (r.question_type === 'mcq') {
-            if (!r.selected_option_id) {
-              totalUnattempted++;
-            } else if (r.selected_option_id === r.correct_option_id) {
+          } else if (isMcq) {
+            if (r.selected_option_id === r.correct_option_id) {
               totalCorrect++;
             } else {
               totalIncorrect++;
@@ -2674,6 +2700,13 @@ export const dbService = {
       }
     }
 
+    const isAbsentAttempt = Boolean(attempt.is_absent || (attempt as any).result_status === 'absent_fail');
+    if (isAbsentAttempt) {
+      attempt.total_correct = 0;
+      attempt.total_incorrect = 0;
+      attempt.total_unattempted = resolvedExam.total_questions || reviewQuestions.length || attempt.total_unattempted || 0;
+    }
+
     return {
       exam: resolvedExam,
       attempt,
@@ -3594,11 +3627,10 @@ export const dbService = {
     const percentage = Number(((newScore / exam.max_marks) * 100).toFixed(1));
 
     // Recalculate total_correct, total_incorrect, and total_unattempted based on trainer grading:
-    // Full marks (manual_marks >= question.marks) -> correct
-    // 0 marks (manual_marks <= 0) -> incorrect
-    // Partial marks (0 < manual_marks < question.marks) -> unattempted
+    const isAbsentAttempt = Boolean(attempt.is_absent || (attempt as any).result_status === 'absent_fail');
     const allResponses = db.prepare(`
-      SELECT ar.manual_marks, ar.selected_option_id, q.marks as q_marks, q.correct_option_id, q.question_type
+      SELECT ar.manual_marks, ar.selected_option_id, ar.descriptive_answer, ar.submitted_file_url,
+             q.marks as q_marks, q.correct_option_id, q.question_type, q.code_template
       FROM attempt_responses ar
       JOIN question_bank q ON ar.question_id = q.id
       WHERE ar.attempt_id = ?
@@ -3608,27 +3640,38 @@ export const dbService = {
     let totalIncorrect = 0;
     let totalUnattempted = 0;
 
-    for (const r of allResponses) {
-      const maxQMarks = Number(r.q_marks || 1);
-      if (r.manual_marks !== null && r.manual_marks !== undefined) {
-        const m = Number(r.manual_marks);
-        if (m >= maxQMarks) {
-          totalCorrect++;
-        } else if (m <= 0) {
-          totalIncorrect++;
+    if (isAbsentAttempt) {
+      totalUnattempted = allResponses.length || (exam.total_questions || 0);
+    } else {
+      for (const r of allResponses) {
+        const maxQMarks = Number(r.q_marks || 1);
+        const isMcq = r.question_type === 'mcq';
+        const isUnattempted = isMcq
+          ? !r.selected_option_id
+          : r.question_type === 'file_upload'
+          ? !r.submitted_file_url
+          : !(r.descriptive_answer && r.descriptive_answer.trim().length > 0 && r.descriptive_answer.trim() !== (r.code_template || '').trim());
+
+        if (isUnattempted) {
+          totalUnattempted++;
+        } else if (r.manual_marks !== null && r.manual_marks !== undefined) {
+          const m = Number(r.manual_marks);
+          if (m >= maxQMarks) {
+            totalCorrect++;
+          } else if (m <= 0) {
+            totalIncorrect++;
+          } else {
+            totalUnattempted++;
+          }
+        } else if (isMcq) {
+          if (r.selected_option_id === r.correct_option_id) {
+            totalCorrect++;
+          } else {
+            totalIncorrect++;
+          }
         } else {
           totalUnattempted++;
         }
-      } else if (r.question_type === 'mcq') {
-        if (!r.selected_option_id) {
-          totalUnattempted++;
-        } else if (r.selected_option_id === r.correct_option_id) {
-          totalCorrect++;
-        } else {
-          totalIncorrect++;
-        }
-      } else {
-        totalUnattempted++;
       }
     }
 
