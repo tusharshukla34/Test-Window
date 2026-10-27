@@ -382,10 +382,11 @@ export function ensureAllMigrations(targetDb: InstanceType<typeof Database> = db
         UPDATE exam_attempts
         SET result_status = CASE 
           WHEN is_absent = 1 THEN 'absent_fail'
+          WHEN evaluation_status IN ('pending_evaluation', 'in_progress') AND (is_published = 0 OR is_published IS NULL) THEN 'pending_evaluation'
           WHEN percentage >= COALESCE(exam_passing_percentage, 40.0) THEN 'pass'
           ELSE 'fail'
         END
-        WHERE (result_status IS NULL OR result_status = 'pending') AND (status = 'completed' OR is_published = 1)
+        WHERE is_absent = 1 OR status = 'completed' OR is_published = 1
       `).run();
     } catch (backfillErr) {
       console.warn('[ensureAllMigrations snapshot backfill warning]:', backfillErr);
@@ -2537,6 +2538,8 @@ export const dbService = {
 
     const passPct = exam.passing_percentage ?? 40.0;
     const isPass = percentage >= passPct;
+    const hasManualGrading = questions.some(q => q.question_type !== 'mcq');
+    const initialResultStatus = hasManualGrading ? 'pending_evaluation' : (isPass ? 'pass' : 'fail');
 
     db.prepare(`
       UPDATE exam_attempts
@@ -2568,7 +2571,7 @@ export const dbService = {
       unattemptedCount,
       percentage,
       accuracy,
-      isPass ? 'pass' : 'fail',
+      initialResultStatus,
       exam.title,
       exam.max_marks,
       exam.duration_minutes,
@@ -2849,6 +2852,9 @@ export const dbService = {
       if (att.is_absent) {
         att.rank = null;
         att.result_status = 'absent_fail';
+      } else if (att.evaluation_status === 'pending_evaluation' || att.evaluation_status === 'in_progress') {
+        att.rank = null;
+        att.result_status = 'pending_evaluation';
       } else {
         att.rank = rankCounter++;
         att.result_status = Number(att.percentage || 0) >= passPct ? 'pass' : 'fail';
@@ -3037,6 +3043,7 @@ export const dbService = {
       let exPassed = 0;
       let exFailed = 0;
       let exAbsent = 0;
+      let exPendingEvaluation = 0;
 
       const studentList = eligibleStudents.map(stu => {
         const att = attemptMap.get(stu.student_id);
@@ -3050,20 +3057,31 @@ export const dbService = {
             max_marks: ex.max_marks,
             percentage: null,
             is_absent: false,
+            evaluation_status: 'not_started',
             result_status: 'pending' as const,
             status: 'not_started'
           };
         }
 
-        const isAbsent = Boolean(att.is_absent);
-        const isPass = !isAbsent && (Number(att.percentage || 0) >= passPct);
-        const resStatus: 'pass' | 'fail' | 'absent_fail' = isAbsent ? 'absent_fail' : (isPass ? 'pass' : 'fail');
+        const isAbsent = Boolean(att.is_absent || att.result_status === 'absent_fail');
+        const isPendingEval = !isAbsent && (att.evaluation_status === 'pending_evaluation' || att.evaluation_status === 'in_progress');
 
-        if (isPass) {
-          exPassed++;
-        } else {
+        let resStatus: 'pass' | 'fail' | 'absent_fail' | 'pending_evaluation';
+        if (isAbsent) {
+          resStatus = 'absent_fail';
           exFailed++;
-          if (isAbsent) exAbsent++;
+          exAbsent++;
+        } else if (isPendingEval) {
+          resStatus = 'pending_evaluation';
+          exPendingEvaluation++;
+        } else {
+          const isPass = Number(att.percentage || 0) >= passPct;
+          resStatus = isPass ? 'pass' : 'fail';
+          if (isPass) {
+            exPassed++;
+          } else {
+            exFailed++;
+          }
         }
 
         return {
@@ -3071,10 +3089,11 @@ export const dbService = {
           name: stu.name,
           student_id_code: stu.student_id_code,
           batch_name: att.batch_name || stu.batch_name,
-          total_score: att.total_score,
+          total_score: isPendingEval ? null : att.total_score,
           max_marks: ex.max_marks,
-          percentage: att.percentage,
+          percentage: isPendingEval ? null : att.percentage,
           is_absent: isAbsent,
+          evaluation_status: att.evaluation_status,
           result_status: resStatus,
           status: att.status
         };
@@ -3101,6 +3120,7 @@ export const dbService = {
         passed_count: exPassed,
         failed_count: exFailed,
         absent_count: exAbsent,
+        pending_evaluation_count: exPendingEvaluation,
         pass_rate: eligibleStudents.length > 0 ? Number(((exPassed / eligibleStudents.length) * 100).toFixed(1)) : 0,
         students: studentList
       });
@@ -3757,6 +3777,11 @@ export const dbService = {
       notes: data.audit_reason || `Evaluation status set to ${data.status}`
     });
 
+    const passPct = exam.passing_percentage ?? 40.0;
+    const evalResultStatus = data.status === 'evaluated'
+      ? (percentage >= passPct ? 'pass' : 'fail')
+      : 'pending_evaluation';
+
     db.prepare(`
       UPDATE exam_attempts
       SET total_score = ?,
@@ -3765,6 +3790,7 @@ export const dbService = {
           total_incorrect = ?,
           total_unattempted = ?,
           evaluation_status = ?,
+          result_status = ?,
           evaluated_at = ?,
           evaluated_by = ?,
           trainer_feedback = ?,
@@ -3777,6 +3803,7 @@ export const dbService = {
       totalIncorrect,
       totalUnattempted,
       data.status,
+      evalResultStatus,
       new Date().toISOString(),
       trainerId,
       data.trainer_feedback ?? attempt.trainer_feedback,
@@ -3823,6 +3850,11 @@ export const dbService = {
       UPDATE exam_attempts
       SET is_published = 1,
           evaluation_status = 'published',
+          result_status = CASE 
+            WHEN is_absent = 1 THEN 'absent_fail'
+            WHEN percentage >= COALESCE(exam_passing_percentage, 40.0) THEN 'pass'
+            ELSE 'fail'
+          END,
           published_at = ?,
           published_by = ?,
           evaluation_history = ?

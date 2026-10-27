@@ -36,7 +36,8 @@ interface ExamPassFailStudent {
   max_marks: number;
   percentage: number | null;
   is_absent: boolean;
-  result_status: 'pass' | 'fail' | 'absent_fail' | 'pending';
+  evaluation_status?: string;
+  result_status: 'pass' | 'fail' | 'absent_fail' | 'pending' | 'pending_evaluation';
   status: string;
 }
 
@@ -56,6 +57,7 @@ interface ExamPassFailReport {
   passed_count: number;
   failed_count: number;
   absent_count: number;
+  pending_evaluation_count?: number;
   pass_rate: number;
   students: ExamPassFailStudent[];
 }
@@ -709,6 +711,13 @@ export default function AdminDashboardPage() {
                             )}
                           </div>
 
+                          {rep.pending_evaluation_count !== undefined && rep.pending_evaluation_count > 0 && (
+                            <div className="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-center min-w-[70px]">
+                              <span className="text-[9px] font-bold uppercase text-amber-700 block">Pending</span>
+                              <span className="text-sm font-black text-amber-800 font-mono">{rep.pending_evaluation_count}</span>
+                            </div>
+                          )}
+
                           <div className="px-3 py-1.5 rounded-xl bg-indigo-50 border border-indigo-100 text-center min-w-[70px]">
                             <span className="text-[9px] font-bold uppercase text-indigo-700 block">Pass Rate</span>
                             <span className="text-sm font-black text-indigo-800 font-mono">{rep.pass_rate}%</span>
@@ -793,7 +802,9 @@ export default function AdminDashboardPage() {
                                           {stu.batch_name}
                                         </td>
                                         <td className="py-2.5 px-3 text-right font-mono font-bold">
-                                          {stu.total_score !== null ? (
+                                          {stu.result_status === 'pending_evaluation' || stu.evaluation_status === 'pending_evaluation' || stu.evaluation_status === 'in_progress' ? (
+                                            <span className="text-amber-600 font-semibold text-xs font-sans">Under Review</span>
+                                          ) : stu.total_score !== null ? (
                                             <span className={stu.result_status === 'pass' ? 'text-emerald-700' : 'text-rose-700'}>
                                               {stu.total_score} / {rep.max_marks}
                                             </span>
@@ -802,7 +813,9 @@ export default function AdminDashboardPage() {
                                           )}
                                         </td>
                                         <td className="py-2.5 px-3 text-right font-mono font-bold">
-                                          {stu.percentage !== null ? (
+                                          {stu.result_status === 'pending_evaluation' || stu.evaluation_status === 'pending_evaluation' || stu.evaluation_status === 'in_progress' ? (
+                                            <span className="text-amber-600 font-semibold text-xs font-sans">—</span>
+                                          ) : stu.percentage !== null ? (
                                             <span className={stu.result_status === 'pass' ? 'text-emerald-700' : 'text-rose-700'}>
                                               {stu.percentage}%
                                             </span>
@@ -811,7 +824,11 @@ export default function AdminDashboardPage() {
                                           )}
                                         </td>
                                         <td className="py-2.5 px-3 flex justify-center">
-                                          {stu.result_status === 'pass' ? (
+                                          {stu.result_status === 'pending_evaluation' || stu.evaluation_status === 'pending_evaluation' || stu.evaluation_status === 'in_progress' ? (
+                                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1" title="Awaiting trainer evaluation">
+                                              <Clock size={11} className="text-amber-600" /> AWAITING EVALUATION
+                                            </span>
+                                          ) : stu.result_status === 'pass' ? (
                                             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
                                               <CheckCircle2 size={11} /> PASSED
                                             </span>

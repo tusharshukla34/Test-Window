@@ -218,7 +218,7 @@ export interface ExamAttempt {
   fullscreen_exit_count?: number;
   proctoring_event_log?: string | null;
   is_absent?: number | boolean;
-  result_status?: 'pass' | 'fail' | 'absent_fail' | 'pending';
+  result_status?: 'pass' | 'fail' | 'absent_fail' | 'pending' | 'pending_evaluation';
   exam_title?: string;
   exam_max_marks?: number;
   exam_duration_minutes?: number;
